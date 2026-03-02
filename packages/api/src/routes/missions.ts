@@ -167,6 +167,32 @@ missionsRouter.post('/:id/approve', asyncHandler(async (req, res) => {
   res.json({ id: mission.id, status: 'approved' });
 }));
 
+// ─── POST /:id/kill — Kill mission (abort all tasks) ──────────────────────
+
+missionsRouter.post('/:id/kill', asyncHandler(async (req, res) => {
+  const orchestrator = req.app.get('orchestratorService') as OrchestratorService;
+  if (!orchestrator) {
+    res.status(503).json({ error: 'Orchestrator service not initialized' });
+    return;
+  }
+
+  const mission = await prisma.mission.findUnique({ where: { id: req.params.id } });
+  if (!mission) {
+    res.status(404).json({ error: 'Mission not found' });
+    return;
+  }
+
+  // Allow killing any non-terminal mission
+  const terminalStatuses = ['approved', 'failed'];
+  if (terminalStatuses.includes(mission.status)) {
+    res.status(400).json({ error: `Cannot kill mission in terminal status: ${mission.status}` });
+    return;
+  }
+
+  const result = await orchestrator.killMission(mission.id);
+  res.json({ id: mission.id, status: 'failed', ...result });
+}));
+
 // ─── POST /:id/reject — Reject mission ─────────────────────────────────────
 
 missionsRouter.post('/:id/reject', asyncHandler(async (req, res) => {

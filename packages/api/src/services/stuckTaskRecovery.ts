@@ -34,8 +34,8 @@ export interface StuckTaskRecoveryConfig {
 }
 
 const DEFAULT_CONFIG: StuckTaskRecoveryConfig = {
-  taskTimeoutMs: 10 * 60 * 1000, // 10 minutes
-  checkIntervalMs: 60 * 1000, // 1 minute
+  taskTimeoutMs: 5 * 60 * 1000, // 5 minutes (was 10 — tightened for faster recovery)
+  checkIntervalMs: 30 * 1000, // 30 seconds (was 60s — more responsive detection)
   enabled: true,
 };
 

@@ -56,6 +56,10 @@ const OPUS_REVIEW_INTERVAL = parseInt(process.env.OPUS_REVIEW_INTERVAL || '10', 
 const OPUS_MIN_COMPLEXITY = 5;
 const REVIEW_QUALITY_THRESHOLD = parseInt(process.env.REVIEW_QUALITY_THRESHOLD || '6', 10);
 
+// Sentinel review configuration
+const SENTINEL_REVIEW_ENABLED = process.env.SENTINEL_REVIEW_ENABLED !== 'false'; // default: true
+const SENTINEL_REVIEW_MODEL = process.env.SENTINEL_REVIEW_MODEL || 'claude-haiku-4-5-20251001';
+
 export class CodeReviewService {
   private anthropic: Anthropic | null = null;
   private enabled: boolean = true;
@@ -250,6 +254,100 @@ export class CodeReviewService {
       console.log(`CodeReviewService: Review completed for task ${taskId} - Reviewer: ${decision.reviewer}, Score: ${reviewResult.qualityScore}/10, Passed: ${!reviewFailed}`);
     } catch (error) {
       console.error(`CodeReviewService: Error reviewing task ${taskId}:`, error);
+    }
+  }
+
+  /**
+   * Sentinel Review — lightweight Haiku review on every completed task.
+   * Checks syntax, validation pass, and obvious logic errors.
+   * Max 500 output tokens (~$0.003/review).
+   *
+   * Returns: { passed: boolean, score: number, summary: string, findings: CodeReviewFinding[] }
+   */
+  async triggerSentinelReview(taskId: string): Promise<{
+    passed: boolean;
+    score: number;
+    summary: string;
+    findings: CodeReviewFinding[];
+  } | null> {
+    if (!SENTINEL_REVIEW_ENABLED || !this.anthropic) {
+      return null;
+    }
+
+    try {
+      const task = await this.prisma.task.findUnique({ where: { id: taskId } });
+      if (!task || task.status !== 'completed') return null;
+
+      // Get code from execution logs
+      const executionLogs = await this.prisma.executionLog.findMany({
+        where: { taskId },
+        orderBy: { step: 'asc' },
+        take: 20,
+      });
+      const codeContent = this.extractCodeFromLogs(executionLogs, task);
+      if (!codeContent) return null;
+
+      const response = await this.anthropic.messages.create({
+        model: SENTINEL_REVIEW_MODEL,
+        max_tokens: 500,
+        system: `You are a quick code reviewer. Check for: syntax errors, obvious logic bugs, missing edge cases.
+Return ONLY valid JSON: {"score": 0-10, "passed": boolean, "summary": "one sentence", "findings": [{"severity": "critical|high|medium|low", "category": string, "description": string}]}
+passed=true if score >= 6 and no critical findings.`,
+        messages: [{
+          role: 'user',
+          content: `Task: "${task.title}"\nCode:\n\`\`\`\n${codeContent.substring(0, 4000)}\n\`\`\``,
+        }],
+      });
+
+      const textContent = response.content.find(c => c.type === 'text');
+      if (!textContent || textContent.type !== 'text') return null;
+
+      const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) return null;
+
+      const result = JSON.parse(jsonMatch[0]);
+
+      // Save to database as sentinel review
+      await this.prisma.codeReview.create({
+        data: {
+          taskId,
+          reviewerId: 'sentinel-review',
+          reviewerModel: SENTINEL_REVIEW_MODEL,
+          initialComplexity: task.complexity || 5,
+          findings: (result.findings || []) as unknown as undefined,
+          summary: result.summary || '',
+          codeQualityScore: result.score || 5,
+          status: result.passed ? 'approved' : 'needs_fixes',
+          inputTokens: response.usage.input_tokens,
+          outputTokens: response.usage.output_tokens,
+          totalCost: this.calculateCost(response.usage.input_tokens, response.usage.output_tokens, 'haiku'),
+        },
+      });
+
+      // Emit event
+      this.io.emit('sentinel_review_completed', {
+        type: 'sentinel_review_completed',
+        payload: {
+          taskId,
+          score: result.score,
+          passed: result.passed,
+          summary: result.summary,
+          findingsCount: (result.findings || []).length,
+        },
+        timestamp: new Date(),
+      });
+
+      console.log(`[SentinelReview] Task ${taskId}: score=${result.score}/10, passed=${result.passed}`);
+
+      return {
+        passed: result.passed ?? false,
+        score: result.score ?? 5,
+        summary: result.summary ?? '',
+        findings: result.findings ?? [],
+      };
+    } catch (error) {
+      console.error(`[SentinelReview] Error reviewing task ${taskId}:`, error);
+      return null;
     }
   }
 

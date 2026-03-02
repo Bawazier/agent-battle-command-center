@@ -49,10 +49,48 @@ Rules:
   BAD:   tasks/static/css/style.css, tasks/templates/index.html, tasks/src/utils.ts
   The coder agent cannot create nested directories. All files must be tasks/filename.ext.
 - For multi-file projects, use descriptive flat names: tasks/landing_header.html, tasks/landing_styles.css
-- validation_command is a shell command that prints "PASS" on success.
-  For Python: python3 -c "from tasks.module import func; assert func(2,3)==5; print('PASS')"
-  For JS:     node -e "const {func} = require('./tasks/module.js'); ... console.log('PASS')"
-  For HTML/CSS/static files: python3 -c "import os; assert os.path.exists('tasks/file.html'); print('PASS')"
+
+## VALIDATION COMMAND RULES (CRITICAL — mismatches cause stuck tasks!)
+
+The validation_command MUST reference the EXACT SAME file as file_name. If file_name is
+"tasks/payment.py", the validation_command MUST import from "tasks.payment", NOT "tasks.schema".
+
+### Validation Command Templates by Language:
+
+**Python (function):**
+  file_name: "tasks/calculator.py"
+  validation_command: "python3 -c \\"from tasks.calculator import add; assert add(2,3)==5; print('PASS')\\"
+
+**Python (class):**
+  file_name: "tasks/stack.py"
+  validation_command: "python3 -c \\"from tasks.stack import Stack; s=Stack(); s.push(1); assert s.pop()==1; print('PASS')\\"
+
+**JavaScript:**
+  file_name: "tasks/utils.js"
+  validation_command: "node -e \\"const {add} = require('./tasks/utils.js'); if(add(2,3)!==5) throw 'FAIL'; console.log('PASS')\\"
+
+**TypeScript:**
+  file_name: "tasks/utils.ts"
+  validation_command: "tsx -e \\"import {add} from './tasks/utils'; if(add(2,3)!==5) throw 'FAIL'; console.log('PASS')\\"
+
+**Go:**
+  file_name: "tasks/main.go"
+  validation_command: "go run tasks/main.go | grep -q 'expected_output' && echo PASS || echo FAIL"
+
+**PHP:**
+  file_name: "tasks/utils.php"
+  validation_command: "php -r \\"require 'tasks/utils.php'; assert(add(2,3)===5); echo 'PASS';\\"
+
+**HTML/CSS/static files:**
+  file_name: "tasks/landing.html"
+  validation_command: "python3 -c \\"import os; assert os.path.exists('tasks/landing.html'); print('PASS')\\"
+
+### Validation Rules:
+- validation_command MUST print "PASS" on success (exact string)
+- validation_command MUST reference the SAME file as file_name (no mismatches!)
+- For Python modules, the import path derives from file_name: tasks/foo.py → from tasks.foo import ...
+- For static files (HTML, CSS), use os.path.exists() with the exact file_name path
+
 - Estimate complexity 1-10 per subtask (see scale below).
 - Order subtasks by dependency — earlier subtasks should not depend on later ones.
 - Return ONLY a valid JSON array, no markdown fences, no extra text.
@@ -70,7 +108,7 @@ JSON schema per subtask:
   "title": "short title",
   "description": "detailed requirements including function signature, edge cases, examples",
   "file_name": "tasks/module_name.py",
-  "validation_command": "python3 -c \\"...\\"; print('PASS')",
+  "validation_command": "python3 -c \\"from tasks.module_name import func; assert func(2,3)==5; print('PASS')\\"",
   "complexity": 5,
   "language": "python"
 }
@@ -154,22 +192,40 @@ def decompose_prompt(
         # Extract basename for checking
         expected_basename = os.path.basename(file_name)
 
-        # Check if validation_command references this file
+        # Auto-fix: Check os.path.exists() references
         if "exists" in val_cmd and "'" in val_cmd:
-            # Try to extract filename from: assert os.path.exists('tasks/schema.prisma')
             matches = re.findall(r"exists\('([^']+)'\)", val_cmd)
             if matches:
                 expected_file = matches[0]
                 expected_basename_in_cmd = os.path.basename(expected_file)
 
-                # If basenames don't match, raise error (CTO should fix this)
                 if expected_basename_in_cmd != expected_basename:
-                    raise ValueError(
-                        f"Subtask '{st['title']}': file_name mismatch!\n"
-                        f"  file_name will create: {file_name}\n"
-                        f"  validation_command expects: {expected_file}\n"
-                        f"  → Agent will create '{expected_basename}' but validation looks for '{expected_basename_in_cmd}'\n"
-                        f"  → Fix by aligning file_name and validation_command file references"
+                    # Auto-fix: replace wrong path with correct file_name
+                    print(f"[Orchestrator] Auto-fixing validation mismatch: "
+                          f"'{expected_file}' → '{file_name}'")
+                    st["validation_command"] = val_cmd.replace(expected_file, file_name)
+
+        # Auto-fix: Check Python import references (from tasks.wrong import ...)
+        if file_name.endswith(".py"):
+            # Expected module: tasks/calculator.py → tasks.calculator
+            expected_module = file_name.replace("/", ".").replace(".py", "")
+            import_matches = re.findall(r"from (tasks\.\w+) import", val_cmd)
+            for found_module in import_matches:
+                if found_module != expected_module:
+                    print(f"[Orchestrator] Auto-fixing Python import mismatch: "
+                          f"'{found_module}' → '{expected_module}'")
+                    st["validation_command"] = val_cmd.replace(found_module, expected_module)
+
+        # Auto-fix: Check JS/Node require references
+        if file_name.endswith(".js"):
+            require_matches = re.findall(r"require\(['\"](\./tasks/[^'\"]+)['\"]\)", val_cmd)
+            expected_require = f"./{file_name}"
+            for found_path in require_matches:
+                if found_path != expected_require:
+                    print(f"[Orchestrator] Auto-fixing JS require mismatch: "
+                          f"'{found_path}' → '{expected_require}'")
+                    st["validation_command"] = st["validation_command"].replace(
+                        found_path, expected_require
                     )
 
     return subtasks

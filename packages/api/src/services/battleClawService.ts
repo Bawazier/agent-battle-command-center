@@ -21,6 +21,7 @@ import { AutoRetryService } from './autoRetryService.js';
 import { calculateTotalCost } from './costCalculator.js';
 import { calculateSavings, type CostSavings } from './costSavingsCalculator.js';
 import { generateMissionZip } from './zipService.js';
+import type { OrchestratorService } from './orchestratorService.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,15 @@ export interface BattleClawResponse {
 
 const DEFAULT_TIMEOUT_MS = 120_000; // 2 minutes
 const POLL_INTERVAL_MS = 1_000;     // 1 second
-const MAX_TIMEOUT_MS = 300_000;     // 5 minutes hard cap
+const MAX_TIMEOUT_MS = 600_000;     // 10 minutes hard cap (increased for missions)
+
+// Fast-path heuristic: skip decomposition for simple requests
+const SIMPLE_TASK_MAX_LENGTH = 200;
+const MULTI_FILE_KEYWORDS = [
+  'landing page', 'web app', 'website', 'multiple files', 'multi-file',
+  'html and css', 'frontend', 'backend', 'full stack', 'project',
+  'component', 'module', 'package', 'application', 'system',
+];
 
 const LANGUAGE_EXTENSIONS: Record<BattleClawLanguage, string> = {
   python: '.py',
@@ -74,6 +83,7 @@ const LANGUAGE_EXTENSIONS: Record<BattleClawLanguage, string> = {
 export class BattleClawService {
   private router: TaskRouter;
   private executor: ExecutorService;
+  private orchestratorService: OrchestratorService | null = null;
 
   constructor(
     private prisma: PrismaClient,
@@ -84,10 +94,127 @@ export class BattleClawService {
   }
 
   /**
-   * Execute a coding task end-to-end: create → route → assign → execute → poll → return code.
-   * Blocks until completion or timeout.
+   * Inject orchestrator service (called from index.ts after both are instantiated).
+   */
+  setOrchestratorService(service: OrchestratorService): void {
+    this.orchestratorService = service;
+  }
+
+  /**
+   * Determine if a request is simple enough for the fast-path (no decomposition).
+   */
+  private isSimpleTask(description: string): boolean {
+    if (description.length > SIMPLE_TASK_MAX_LENGTH) return false;
+    const lowerDesc = description.toLowerCase();
+    return !MULTI_FILE_KEYWORDS.some(kw => lowerDesc.includes(kw));
+  }
+
+  /**
+   * Execute a coding task end-to-end.
+   * Simple tasks use fast-path (direct execution).
+   * Complex tasks delegate to OrchestratorService (full CTO mission pipeline).
    */
   async executeTask(request: BattleClawRequest): Promise<BattleClawResponse> {
+    // ── Mission pipeline for complex tasks ──────────────────────────
+    if (!this.isSimpleTask(request.description) && this.orchestratorService) {
+      return this.executeViaMission(request);
+    }
+
+    // ── Fast-path for simple tasks ──────────────────────────────────
+    return this.executeDirectly(request);
+  }
+
+  /**
+   * Complex task execution via full CTO mission pipeline (decompose → execute → review).
+   */
+  private async executeViaMission(request: BattleClawRequest): Promise<BattleClawResponse> {
+    const startTime = Date.now();
+
+    try {
+      const missionId = await this.orchestratorService!.startMission({
+        prompt: request.description,
+        language: request.language,
+        autoApprove: true,
+      });
+
+      // Wait for completion
+      const timeoutMs = Math.min(request.maxTimeoutMs || MAX_TIMEOUT_MS, MAX_TIMEOUT_MS);
+      await this.orchestratorService!.waitForCompletion(missionId, timeoutMs);
+
+      const mission = await this.prisma.mission.findUnique({
+        where: { id: missionId },
+        include: { tasks: { select: { id: true, title: true, status: true, complexity: true } } },
+      });
+
+      if (!mission) throw new Error('Mission not found after completion');
+
+      const files = await this.orchestratorService!.getMissionFiles(missionId);
+      const elapsed = Date.now() - startTime;
+      const isSuccess = mission.status === 'approved';
+
+      // Calculate actual cost
+      let totalActualCost = 0;
+      for (const task of mission.tasks) {
+        const logs = await this.prisma.executionLog.findMany({ where: { taskId: task.id } });
+        totalActualCost += calculateTotalCost(logs);
+      }
+      const avgComplexity = mission.tasks.length > 0
+        ? mission.tasks.reduce((s, t) => s + (t.complexity || 5), 0) / mission.tasks.length
+        : 5;
+      const savings = calculateSavings(Math.round(avgComplexity), totalActualCost);
+
+      // Generate zip if requested
+      let zipBase64: string | undefined;
+      if (request.includeZip && Object.keys(files).length > 0) {
+        try {
+          const zipBuffer = await generateMissionZip(files, {
+            missionId: mission.id,
+            prompt: request.description,
+            language: request.language,
+            reviewScore: mission.reviewScore,
+            totalCost: totalActualCost,
+            totalTimeMs: elapsed,
+            subtaskCount: mission.subtaskCount,
+            completedCount: mission.completedCount,
+            failedCount: mission.failedCount,
+            plan: mission.plan as Array<{ title: string; file_name: string; complexity: number }> | null,
+            taskStatuses: {},
+          });
+          zipBase64 = zipBuffer.toString('base64');
+        } catch { /* best-effort */ }
+      }
+
+      return {
+        success: isSuccess,
+        taskId: missionId, // Use missionId as the "taskId" for mission-based execution
+        files,
+        validated: isSuccess,
+        complexity: { score: Math.round(avgComplexity), source: 'mission' },
+        execution: { model: 'mission-pipeline', tier: 'ollama', timeMs: elapsed },
+        cost: savings,
+        zipBase64,
+        error: isSuccess ? undefined : (mission.error || 'Mission failed'),
+      };
+    } catch (error) {
+      const elapsed = Date.now() - startTime;
+      return {
+        success: false,
+        taskId: '',
+        files: {},
+        validated: false,
+        complexity: { score: 0, source: 'error' },
+        execution: { model: 'mission-pipeline', tier: 'ollama', timeMs: elapsed },
+        cost: calculateSavings(5, 0),
+        error: error instanceof Error ? error.message : 'Mission execution failed',
+      };
+    }
+  }
+
+  /**
+   * Simple task fast-path: direct execution without decomposition.
+   * Original executeTask logic preserved.
+   */
+  private async executeDirectly(request: BattleClawRequest): Promise<BattleClawResponse> {
     const startTime = Date.now();
     const timeoutMs = Math.min(request.maxTimeoutMs || DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS);
 

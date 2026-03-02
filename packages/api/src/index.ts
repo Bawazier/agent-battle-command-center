@@ -120,6 +120,7 @@ console.log('Battle Claw service: enabled');
 const orchestratorService = new OrchestratorService(prisma, io);
 app.set('orchestratorService', orchestratorService);
 chatService.setOrchestratorService(orchestratorService);
+battleClawService.setOrchestratorService(orchestratorService);
 console.log('Orchestrator service: enabled');
 
 // Routes

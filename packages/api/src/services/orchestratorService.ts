@@ -17,6 +17,7 @@ import type { Server as SocketIOServer } from 'socket.io';
 import { TaskRouter, type ModelTier } from './taskRouter.js';
 import { ExecutorService } from './executor.js';
 import { AutoRetryService } from './autoRetryService.js';
+import { CodeReviewService } from './codeReviewService.js';
 import { calculateTotalCost } from './costCalculator.js';
 import { calculateSavings } from './costSavingsCalculator.js';
 import { getRemoteModelForComplexity } from './resourcePool.js';
@@ -57,7 +58,9 @@ interface MissionFiles {
 const AGENTS_URL = config.agents.url;
 const DECOMPOSE_TIMEOUT_MS = parseInt(process.env.DECOMPOSE_TIMEOUT_MS || '300000', 10);  // 5 min default
 const REVIEW_TIMEOUT_MS = parseInt(process.env.REVIEW_TIMEOUT_MS || '300000', 10);        // 5 min default
-const SUBTASK_TIMEOUT_MS = 600_000; // 10 min per subtask
+const SUBTASK_TIMEOUT_MS = parseInt(process.env.MISSION_SUBTASK_TIMEOUT_MS || '300000', 10); // 5 min per subtask (was 10 min)
+const MISSION_TIMEOUT_MS = parseInt(process.env.MISSION_TIMEOUT_MS || '1800000', 10);       // 30 min total mission timeout
+const MISSION_SENTINEL_ENABLED = process.env.MISSION_SENTINEL_ENABLED !== 'false'; // default: true
 const SUBTASK_REST_DELAY_MS = 3_000;     // 3s rest between subtasks (prevents Ollama context pollution)
 const SUBTASK_EXTENDED_REST_MS = 8_000;  // 8s extended rest every 5th subtask
 const SUBTASK_REST_EVERY_N = 5;          // Trigger extended rest interval
@@ -176,6 +179,16 @@ export class OrchestratorService {
       const results: SubtaskResult[] = [];
 
       for (let i = 0; i < taskIds.length; i++) {
+        // ── Mission timeout guard ─────────────────────────────────────
+        const elapsed = Date.now() - startTime;
+        if (elapsed > MISSION_TIMEOUT_MS) {
+          const timeoutMin = Math.round(MISSION_TIMEOUT_MS / 60000);
+          throw new Error(
+            `Mission timed out after ${timeoutMin} minutes ` +
+            `(completed ${i}/${taskIds.length} subtasks in ${Math.round(elapsed / 1000)}s)`
+          );
+        }
+
         const taskId = taskIds[i];
         const plan = { ...subtasks[i] };  // Clone so we can augment description
 
@@ -224,6 +237,21 @@ export class OrchestratorService {
           fileName: result.file_name,
           code: result.code,
           language: subtasks[i].language,
+        });
+
+        // ── Progress event with ETA ───────────────────────────────────
+        const completedCount = i + 1;
+        const elapsedSoFar = Date.now() - startTime;
+        const avgTimePerTask = elapsedSoFar / completedCount;
+        const remaining = taskIds.length - completedCount;
+        const etaMs = Math.round(avgTimePerTask * remaining);
+        this.emitMissionEvent('mission_progress', {
+          missionId,
+          percent: Math.round((completedCount / taskIds.length) * 100),
+          current: completedCount,
+          total: taskIds.length,
+          currentTask: plan.title,
+          etaSeconds: Math.round(etaMs / 1000),
         });
 
         // Post progress to chat
@@ -436,6 +464,29 @@ export class OrchestratorService {
         });
       }
 
+      // ── Sentinel Review (mission gatekeeper) ─────────────────────────
+      // Quick Haiku review after validation passes to catch logic/quality issues
+      if (validated && MISSION_SENTINEL_ENABLED) {
+        try {
+          const reviewService = new CodeReviewService(this.prisma, this.io);
+          const sentinelResult = await reviewService.triggerSentinelReview(taskId);
+          if (sentinelResult && !sentinelResult.passed) {
+            console.log(`[Orchestrator] Sentinel review FAILED for task ${taskId}: ${sentinelResult.summary}`);
+            this.emitMissionEvent('mission_sentinel_failed', {
+              missionId,
+              taskId,
+              score: sentinelResult.score,
+              summary: sentinelResult.summary,
+              findings: sentinelResult.findings,
+            });
+            // Note: we don't fail the subtask — Sentinel failure is informational
+            // The CTO review at the end will catch critical issues
+          }
+        } catch (err) {
+          console.error(`[Orchestrator] Sentinel review error for task ${taskId}:`, err);
+        }
+      }
+
       // Release agent
       await this.prisma.agent.update({
         where: { id: agentId },
@@ -517,6 +568,73 @@ export class OrchestratorService {
     }
 
     this.emitMissionEvent('mission_approved', { missionId });
+  }
+
+  /**
+   * Kill a mission — abort all in-progress tasks, release agents/resources, mark failed.
+   */
+  async killMission(missionId: string): Promise<{ abortedTasks: number; releasedAgents: number }> {
+    const mission = await this.prisma.mission.findUnique({ where: { id: missionId } });
+    if (!mission) throw new Error(`Mission ${missionId} not found`);
+
+    // Find all non-terminal tasks for this mission
+    const activeTasks = await this.prisma.task.findMany({
+      where: {
+        missionId,
+        status: { in: ['pending', 'assigned', 'in_progress'] },
+      },
+    });
+
+    let abortedTasks = 0;
+    let releasedAgents = 0;
+
+    for (const task of activeTasks) {
+      // Release agent if assigned
+      if (task.assignedAgentId) {
+        await this.prisma.agent.update({
+          where: { id: task.assignedAgentId },
+          data: { status: 'idle', currentTaskId: null },
+        }).catch(() => {});
+        this.emitAgentUpdate(task.assignedAgentId, 'idle');
+        releasedAgents++;
+      }
+
+      // Release resource pool slot
+      const { ResourcePoolService } = await import('./resourcePool.js');
+      ResourcePoolService.getInstance().release(task.id);
+
+      // Abort the task
+      await this.prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: 'aborted',
+          error: 'Mission manually killed',
+          errorCategory: 'killed',
+        },
+      });
+      this.emitTaskUpdate(task.id);
+      abortedTasks++;
+    }
+
+    // Mark mission as failed
+    await this.prisma.mission.update({
+      where: { id: missionId },
+      data: {
+        status: 'failed',
+        error: 'Manually killed',
+        completedAt: new Date(),
+        totalTimeMs: mission.createdAt ? Date.now() - mission.createdAt.getTime() : 0,
+      },
+    });
+
+    if (mission.conversationId) {
+      await this.postToChat(mission.conversationId, `🛑 **Mission killed.** ${abortedTasks} task(s) aborted, ${releasedAgents} agent(s) released.`);
+    }
+
+    this.emitMissionEvent('mission_killed', { missionId, abortedTasks, releasedAgents });
+
+    console.log(`[Orchestrator] Mission ${missionId} killed: ${abortedTasks} tasks aborted, ${releasedAgents} agents released`);
+    return { abortedTasks, releasedAgents };
   }
 
   /**

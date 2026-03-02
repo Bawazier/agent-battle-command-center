@@ -1,6 +1,6 @@
 # Agent Battle Command Center - Full Architecture Assessment
 
-**Date:** 2026-02-06 (Updated: 2026-03-02 — v0.9.0: Mac Studio M4 Max Integration)
+**Date:** 2026-02-06 (Updated: 2026-03-02 — v0.10.0: CTO + QA Overhaul)
 **Assessor:** Software Architecture Review (Claude Sonnet 4.6)
 **Codebase Snapshot:** main branch, clean working tree
 **Previous Score:** 7.2 / 10 (Strong Alpha, Pre-MVP)
@@ -1097,3 +1097,74 @@ The CTO Mission Orchestrator is production-ready for web development tasks. It a
 - **Clear cost transparency** ($0.020 per mission)
 
 The system successfully validates the core hypothesis: **detailed requirements + local Ollama execution + Sonnet orchestration = high-quality, low-cost AI-generated code.**
+
+---
+
+## v0.10.0 — CTO + QA Overhaul (Mar 2, 2026)
+
+### Changes Made
+
+**Phase A: QA Agent Overhaul**
+- **A1: Sentinel-9 Persona** — Rewrote QA agent backstory from 4 lines to ~200 lines matching CodeX-7 structure. Added "Watchdog" identity, 5-step review protocol, 5 review examples (PASS and FAIL cases), language-specific checklists, edge case checklist, structured JSON verdict format.
+- **A2: Sentinel Review Mode** — Added `triggerSentinelReview()` to CodeReviewService for lightweight Haiku review on every completed task. ~$0.003/review. Env: `SENTINEL_REVIEW_ENABLED`, `SENTINEL_REVIEW_MODEL`.
+- **A3: QA Mission Gatekeeper** — Sentinel review runs after each subtask passes auto-retry in mission pipeline. Informational (doesn't block), feeds into CTO review. Env: `MISSION_SENTINEL_ENABLED`.
+- **A4: QA Stress Test** — `scripts/qa-stress-test.js` with 20 test cases (10 correct, 5 subtle bugs, 3 syntax, 2 logic). Validates review accuracy against known ground truth. Target: 90%+.
+
+**Phase B: CTO Reliability & Stuck Tasks**
+- **B1: Faster Timeouts** — Stuck task timeout: 10min → 5min, check interval: 60s → 30s, subtask timeout: 10min → 5min. New: mission-level timeout of 30min. Env: `MISSION_SUBTASK_TIMEOUT_MS`, `MISSION_TIMEOUT_MS`.
+- **B2: Manual Kill Endpoint** — `POST /api/missions/:id/kill` aborts all in-progress tasks, releases agents/resources, marks mission failed. Safety net for stuck missions.
+- **B3: Better Validation Commands** — Strengthened CTO decomposition prompt with explicit validation command templates per language (Python, JS, TS, Go, PHP, HTML). Added auto-fix for filename mismatches in validation commands (os.path.exists, Python imports, JS requires).
+- **B4: Mission Timeout Guard** — Elapsed-time check at top of each subtask loop iteration. Throws error with progress info if MISSION_TIMEOUT_MS exceeded.
+
+**Phase C: Battle Claw → Mission Pipeline**
+- **C1: Orchestrator Delegation** — BattleClawService now delegates complex requests to OrchestratorService (full CTO mission pipeline). Same API contract (send description, get code back).
+- **C2: Simple Task Fast-Path** — Heuristic: if description < 200 chars and no multi-file keywords → skip decomposition, use direct execution. Preserves speed for `"create add function"` while complex prompts get full CTO treatment.
+
+**Phase D: Chat UX Polish**
+- **D1: Better Clarification Flow** — Accepts "build", "go", "start", "skip", "proceed" as synonyms for "Let's Build". Auto-detects language from prompt keywords (HTML, React, TypeScript, Go, PHP).
+- **D2: Progress Updates with ETA** — Emits `mission_progress` WebSocket event with percent, current/total, current task title, etaSeconds (calculated from avg completion time).
+
+**Phase E: Mac Studio Preparation**
+- **E1: Remote Mission Test** — `scripts/test-remote-mission.js` tests remote Ollama routing with a C7-C8 mission (LRU Cache). Verifies routing in execution logs.
+- **E2: Pre-Flight Check** — `scripts/mac-preflight.js` validates: remote reachable, models pulled, API key set, local Ollama healthy, network latency (3-ping test).
+- **E3: Startup Model Validation** — ResourcePoolService validates `REMOTE_OLLAMA_MODEL_MAP` models exist on remote Ollama at startup. Logs warnings for missing models.
+
+### New Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SENTINEL_REVIEW_ENABLED` | true | Enable Sentinel (lightweight Haiku) review on every task |
+| `SENTINEL_REVIEW_MODEL` | claude-haiku-4-5-20251001 | Model for Sentinel reviews |
+| `MISSION_SENTINEL_ENABLED` | true | Enable Sentinel review as mission gatekeeper |
+| `MISSION_SUBTASK_TIMEOUT_MS` | 300000 (5 min) | Per-subtask timeout in missions |
+| `MISSION_TIMEOUT_MS` | 1800000 (30 min) | Total mission timeout |
+
+### New API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/missions/:id/kill` | Kill mission, abort all tasks, release agents |
+
+### New Scripts
+
+| Script | Description |
+|--------|-------------|
+| `node scripts/qa-stress-test.js` | 20-task QA review accuracy test (target: 90%+) |
+| `node scripts/mac-preflight.js` | Mac Studio connectivity pre-flight check |
+| `node scripts/test-remote-mission.js` | Remote Ollama mission routing test |
+
+### Files Modified
+
+| File | Changes |
+|------|---------|
+| `packages/agents/src/agents/qa.py` | Sentinel-9 persona (~200 lines backstory) |
+| `packages/agents/src/orchestrator.py` | Better validation command templates + auto-fix |
+| `packages/api/src/services/stuckTaskRecovery.ts` | Faster defaults (5min/30s) |
+| `packages/api/src/services/orchestratorService.ts` | Mission timeout guard, Sentinel gatekeeper, progress ETA |
+| `packages/api/src/services/codeReviewService.ts` | Sentinel review mode |
+| `packages/api/src/services/battleClawService.ts` | Mission pipeline delegation + fast-path |
+| `packages/api/src/services/resourcePool.ts` | Startup remote model validation |
+| `packages/api/src/services/chatService.ts` | Clarification synonyms, language auto-detect |
+| `packages/api/src/routes/missions.ts` | Kill endpoint |
+| `packages/api/src/index.ts` | Wire battleClawService ↔ orchestratorService |
+| `MVP_ASSESSMENT.md` | This section |

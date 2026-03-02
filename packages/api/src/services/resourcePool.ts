@@ -99,6 +99,11 @@ export class ResourcePoolService {
       this.activeTasks.set('remote_ollama', new Set());
       this.limits['remote_ollama'] = REMOTE_OLLAMA_SLOTS;
       console.log(`[ResourcePool] Remote Ollama enabled: ${REMOTE_OLLAMA_URL} (${REMOTE_OLLAMA_SLOTS} slots, C${REMOTE_OLLAMA_MIN_COMPLEXITY}-C${REMOTE_OLLAMA_MAX_COMPLEXITY})`);
+
+      // Validate remote models on startup (non-blocking)
+      this.validateRemoteModels().catch((err) => {
+        console.error('[ResourcePool] Remote model validation failed:', err);
+      });
     }
 
     // Conditionally init grok pool if XAI_API_KEY is set
@@ -106,6 +111,41 @@ export class ResourcePoolService {
       this.activeTasks.set('grok', new Set());
       this.limits['grok'] = 2;
       console.log('[ResourcePool] Grok (xAI) enabled: 2 slots');
+    }
+  }
+
+  /**
+   * Validate that remote Ollama has all models configured in REMOTE_OLLAMA_MODEL_MAP.
+   * Logs warnings for missing models. Non-blocking — failures don't prevent startup.
+   */
+  private async validateRemoteModels(): Promise<void> {
+    if (!REMOTE_OLLAMA_URL || REMOTE_MODEL_MAP.length === 0) return;
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${REMOTE_OLLAMA_URL}/api/tags`, { signal: controller.signal });
+      clearTimeout(timer);
+
+      if (!response.ok) {
+        console.warn(`[ResourcePool] Remote Ollama health check failed: HTTP ${response.status}`);
+        return;
+      }
+
+      const data = await response.json() as { models?: Array<{ name: string }> };
+      const availableModels = (data.models || []).map((m) => m.name);
+
+      for (const entry of REMOTE_MODEL_MAP) {
+        const found = availableModels.some((m) => m.startsWith(entry.model) || m === entry.model);
+        if (found) {
+          console.log(`[ResourcePool] Remote model ${entry.model} (C${entry.min}-${entry.max}): ✓ available`);
+        } else {
+          console.warn(`[ResourcePool] ⚠️  Remote model ${entry.model} (C${entry.min}-${entry.max}): NOT FOUND on ${REMOTE_OLLAMA_URL}`);
+          console.warn(`[ResourcePool]    Run: ollama pull ${entry.model}`);
+        }
+      }
+    } catch (err) {
+      console.warn(`[ResourcePool] Could not validate remote models: ${err instanceof Error ? err.message : 'unknown error'}`);
     }
   }
 

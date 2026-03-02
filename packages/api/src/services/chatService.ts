@@ -264,14 +264,19 @@ export class ChatService {
         const normalized = content.trim().toLowerCase();
         let finalPrompt = pending.originalPrompt;
 
-        // If user typed anything other than "Let's Build" magic string, append as context
-        if (normalized !== '__lets_build__') {
+        // Accept synonyms for "Let's Build" / skip clarification
+        const skipSynonyms = ['__lets_build__', 'build', 'go', 'start', 'skip', "let's build", 'lets build', 'proceed'];
+        if (!skipSynonyms.includes(normalized)) {
           finalPrompt += `\n\nUser context:\n${content}`;
         }
+
+        // Auto-detect language from prompt
+        const detectedLang = this.detectLanguage(finalPrompt);
 
         // Start mission with potentially augmented prompt
         await this.orchestratorService.startMission({
           prompt: finalPrompt,
+          language: detectedLang,
           conversationId,
           autoApprove: false,
         });
@@ -599,6 +604,40 @@ export class ChatService {
     } finally {
       reader.releaseLock();
     }
+  }
+
+  /**
+   * Auto-detect language from prompt keywords.
+   */
+  private detectLanguage(prompt: string): string {
+    const lower = prompt.toLowerCase();
+
+    // HTML/CSS/JS web projects
+    if (lower.includes('html') || lower.includes('landing page') || lower.includes('website') || lower.includes('web page')) {
+      return 'html';
+    }
+    // React/Vue/Angular → javascript
+    if (lower.includes('react') || lower.includes('vue') || lower.includes('angular') || lower.includes('next.js')) {
+      return 'javascript';
+    }
+    // TypeScript explicit
+    if (lower.includes('typescript') || lower.includes('.ts ')) {
+      return 'typescript';
+    }
+    // JavaScript explicit
+    if (lower.includes('javascript') || lower.includes('node.js') || lower.includes('express')) {
+      return 'javascript';
+    }
+    // Go explicit
+    if (lower.includes(' go ') || lower.includes('golang') || lower.includes('go program')) {
+      return 'go';
+    }
+    // PHP explicit
+    if (lower.includes('php') || lower.includes('laravel')) {
+      return 'php';
+    }
+    // Default to python
+    return 'python';
   }
 
   private mapConversation(conversation: {
