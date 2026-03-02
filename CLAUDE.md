@@ -34,8 +34,8 @@ The agents service uses **crewai 0.86.0** which internally uses **litellm** for 
 - `qwen2.5-coder:8k` — C1-C6 simple/moderate tasks (default, fastest)
 - `qwen2.5-coder:16k` — C7-C8 complex tasks (algorithms, data structures)
 - `qwen2.5-coder:32k` — C9 extreme tasks (single-class implementations)
-- All auto-created by `scripts/ollama-entrypoint.sh` on container startup
-- Modelfiles in `modelfiles/qwen2.5-coder-{8k,16k,32k}.Modelfile`
+- All auto-created by `scripts/ollama-entrypoint.sh` on container startup (Windows) or `scripts/ollama-entrypoint-mac.sh` (Mac)
+- Modelfiles in `modelfiles/qwen2.5-coder-{8k,16k,32k,64k}.Modelfile` (64K is Mac-only)
 
 **Dynamic Context Window (UPGRADED Feb 17, 2026):**
 - Context size routes by complexity: 8K (C1-C6) → 16K (C7-C8) → 32K (C9)
@@ -236,6 +236,44 @@ Official Anthropic pricing per million tokens:
 - `packages/api/src/services/costCalculator.ts` - Per-log cost calculation
 - `packages/api/src/services/budgetService.ts` - Daily budget enforcement
 - Budget display in TopBar with real-time WebSocket updates
+
+### Multi-Model Remote Routing
+
+When `REMOTE_OLLAMA_MODEL_MAP` is set, different complexity levels route to different models on the remote Ollama:
+
+```bash
+REMOTE_OLLAMA_MODEL_MAP=7-8:qwen2.5-coder:32k,9:qwen2.5-coder:70b
+```
+
+**Implementation:** `getRemoteModelForComplexity()` in `resourcePool.ts`, used by:
+- `taskExecutor.ts` — auto-assign execution
+- `autoRetryService.ts` — Phase 2 retry
+- `orchestratorService.ts` — mission subtask execution
+
+Falls back to `REMOTE_OLLAMA_MODEL` when map is empty (fully backward compatible).
+
+### Mac Studio Deployment
+
+**Standalone mode** — full ABCC stack runs on Mac:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.mac.yml up --build
+```
+
+**Remote provider mode** — Mac serves Ollama to Windows ABCC:
+```bash
+# On Mac:
+OLLAMA_HOST=0.0.0.0 ollama serve
+# On Windows .env:
+REMOTE_OLLAMA_URL=http://mac-studio.local:11434
+```
+
+**Key files:**
+- `docker-compose.mac.yml` — Override: disables Docker Ollama, uses native Metal-accelerated Ollama
+- `scripts/setup-mac.sh` — One-command Mac setup (Homebrew, Ollama, models, .env)
+- `scripts/ollama-entrypoint-mac.sh` — Docker Ollama entrypoint for Mac (pulls 7B+70B)
+- `modelfiles/qwen2.5-coder-64k.Modelfile` — 64K context (Mac-only, 128GB RAM)
+
+**ARM64 support:** `packages/agents/Dockerfile` uses `TARGETARCH` for multi-arch Go binary.
 
 ## Storage Configuration
 
@@ -1111,6 +1149,7 @@ pnpm run security:audit       # Fail build if HIGH/CRITICAL vulns found
 | `REMOTE_OLLAMA_MAX_COMPLEXITY` | No | 9 | Tasks > this go to Claude |
 | `REMOTE_OLLAMA_SLOTS` | No | 1 | Parallel task slots on remote |
 | `REMOTE_OLLAMA_COST_CENTS` | No | 0 | Per-task cost tracking (electricity) |
+| `REMOTE_OLLAMA_MODEL_MAP` | No | (empty) | Complexity-to-model map (e.g., `7-8:qwen2.5-coder:32k,9:qwen2.5-coder:70b`) |
 | `REMOTE_OLLAMA_TIMEOUT` | No | 600 | Timeout in seconds for remote tasks |
 | `RATE_LIMIT_BUFFER` | No | 0.8 | Trigger rate limiting at this % of limit |
 | `MIN_API_DELAY` | No | 0.5 | Minimum delay (seconds) between API calls |

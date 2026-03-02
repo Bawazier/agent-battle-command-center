@@ -25,6 +25,51 @@ export function isRemoteOllamaEnabled(): boolean {
   return REMOTE_OLLAMA_URL.length > 0;
 }
 
+// ---------------------------------------------------------------------------
+// Remote Ollama Model Map — maps complexity ranges to specific models
+// Format: "7-8:qwen2.5-coder:32k,9:qwen2.5-coder:70b"
+// ---------------------------------------------------------------------------
+
+interface ModelMapEntry {
+  min: number;
+  max: number;
+  model: string;
+}
+
+function parseModelMap(mapStr: string): ModelMapEntry[] {
+  if (!mapStr) return [];
+
+  return mapStr.split(',').map((entry) => {
+    const [range, ...modelParts] = entry.trim().split(':');
+    // Model name may contain colons (e.g., "qwen2.5-coder:32k"), so rejoin
+    const model = modelParts.join(':');
+    if (!model) return null;
+
+    const rangeParts = range.split('-');
+    const min = parseInt(rangeParts[0], 10);
+    const max = rangeParts.length > 1 ? parseInt(rangeParts[1], 10) : min;
+
+    if (isNaN(min) || isNaN(max)) return null;
+    return { min, max, model };
+  }).filter((e): e is ModelMapEntry => e !== null);
+}
+
+const REMOTE_MODEL_MAP = parseModelMap(process.env.REMOTE_OLLAMA_MODEL_MAP || '');
+
+/**
+ * Resolve the remote Ollama model for a given complexity.
+ * Uses REMOTE_OLLAMA_MODEL_MAP if set, otherwise falls back to REMOTE_OLLAMA_MODEL.
+ */
+export function getRemoteModelForComplexity(complexity: number): string {
+  for (const entry of REMOTE_MODEL_MAP) {
+    if (complexity >= entry.min && complexity <= entry.max) {
+      return entry.model;
+    }
+  }
+  // Fallback to single model env var
+  return process.env.REMOTE_OLLAMA_MODEL || 'qwen2.5-coder:70b';
+}
+
 export interface ResourceStatus {
   type: ResourceType;
   maxSlots: number;

@@ -17,7 +17,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { TrainingDataService } from './trainingDataService.js';
 import { calculateActualComplexity, categorizeError } from './complexityCalculator.js';
-import { ResourcePoolService } from './resourcePool.js';
+import { ResourcePoolService, getRemoteModelForComplexity } from './resourcePool.js';
 import type { CodeReviewService } from './codeReviewService.js';
 import { mcpBridge } from './mcpBridge.js';
 import { OllamaOptimizer, getOllamaOptimizer } from './ollamaOptimizer.js';
@@ -729,16 +729,14 @@ export class TaskExecutor {
             execEnv = modelOverride.env;
             console.log(`🎯 Using model override for ${agent.name}: ${preferredModel} → ${modelOverride.model}`);
           } else if (decision.modelTier === 'remote_ollama') {
-            // Remote Ollama: use remote model and URL override
+            // Remote Ollama: use model map (complexity-based) and URL override
             useClaude = false;
-            execModel = process.env.REMOTE_OLLAMA_MODEL || 'qwen2.5-coder:70b';
+            execModel = getRemoteModelForComplexity(decision.complexity || 7);
             execEnv = { OLLAMA_API_BASE: process.env.REMOTE_OLLAMA_URL || '' };
           } else if (decision.modelTier === 'ollama') {
             useClaude = false;
             const cx = decision.complexity || 0;
-            execModel = cx >= 9 ? 'qwen2.5-coder:32k'
-                      : cx >= 7 ? 'qwen2.5-coder:16k'
-                      : 'qwen2.5-coder:8k';
+            execModel = cx >= 7 ? 'qwen2.5-coder:32k' : 'qwen2.5-coder:16k';
           } else {
             useClaude = true;
             execModel = undefined;

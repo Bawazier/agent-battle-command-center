@@ -12,8 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && npm install -g typescript tsx \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Go 1.22
-RUN curl -fsSL https://go.dev/dl/go1.22.12.linux-amd64.tar.gz | tar -C /usr/local -xz
+# Install Go 1.22 (multi-arch: amd64 for Windows/Linux x86, arm64 for Mac Apple Silicon)
+ARG TARGETARCH
+RUN curl -fsSL "https://go.dev/dl/go1.22.12.linux-${TARGETARCH}.tar.gz" | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:${PATH}"
 
 # Copy requirements first for caching

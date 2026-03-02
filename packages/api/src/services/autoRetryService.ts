@@ -15,7 +15,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { config } from '../config.js';
 import { ExecutorService } from './executor.js';
-import { isRemoteOllamaEnabled } from './resourcePool.js';
+import { isRemoteOllamaEnabled, getRemoteModelForComplexity } from './resourcePool.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -173,7 +173,7 @@ export class AutoRetryService {
           'remote',
         );
 
-        const remoteModel = process.env.REMOTE_OLLAMA_MODEL || 'qwen2.5-coder:70b';
+        const remoteModel = getRemoteModelForComplexity(task.complexity || 7);
         const execResult = await this.executor.executeTask({
           taskId,
           agentId: task.assignedAgentId || 'coder-01',

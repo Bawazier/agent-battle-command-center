@@ -1,0 +1,51 @@
+# =============================================================================
+# Mac Studio Override — Native Ollama + Docker everything else
+# =============================================================================
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.mac.yml up
+#
+# This override file:
+#   1. Disables the Docker Ollama container (use native Ollama for Metal acceleration)
+#   2. Points agents/api at native Ollama via host.docker.internal
+#   3. Removes NVIDIA GPU reservations (not needed on Apple Silicon)
+#   4. Configures UI build args for LAN access from Windows
+#
+# Prerequisites:
+#   - Native Ollama running: OLLAMA_HOST=0.0.0.0 ollama serve
+#   - Models pulled: ollama pull qwen2.5-coder:7b && ollama pull qwen2.5-coder:70b
+#   - Context variants created: ollama create qwen2.5-coder:16k -f modelfiles/qwen2.5-coder-16k.Modelfile
+#
+# =============================================================================
+
+services:
+  # Disable Docker Ollama — use native Ollama for direct Metal access
+  ollama:
+    profiles: ["disabled"]
+
+  # Agents: point at native Ollama on the host
+  agents:
+    environment:
+      OLLAMA_URL: http://host.docker.internal:11434
+      OLLAMA_API_BASE: http://host.docker.internal:11434
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # No ollama dependency — runs natively outside Docker
+
+  # API: point at native Ollama on the host
+  api:
+    environment:
+      OLLAMA_URL: http://host.docker.internal:11434
+
+  # UI: build with LAN-accessible URLs so Windows can reach the Mac
+  # Replace 10.0.0.2 with your Mac's actual IP if different
+  ui:
+    build:
+      args:
+        VITE_API_URL: http://${MAC_IP:-10.0.0.2}:3001
+        VITE_WS_URL: ws://${MAC_IP:-10.0.0.2}:3001
+    ports:
+      - "0.0.0.0:5173:5173"

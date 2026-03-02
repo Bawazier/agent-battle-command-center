@@ -1,6 +1,6 @@
 # Agent Battle Command Center - Full Architecture Assessment
 
-**Date:** 2026-02-06 (Updated: 2026-02-28 — v0.8.2: Mission Pipeline Reliability)
+**Date:** 2026-02-06 (Updated: 2026-03-02 — v0.9.0: Mac Studio M4 Max Integration)
 **Assessor:** Software Architecture Review (Claude Sonnet 4.6)
 **Codebase Snapshot:** main branch, clean working tree
 **Previous Score:** 7.2 / 10 (Strong Alpha, Pre-MVP)
@@ -44,6 +44,13 @@ Since the initial assessment earlier today, **significant improvements** have be
   - Remote tier is fully optional — unset `REMOTE_OLLAMA_URL` for 2-tier fallback
   - Resource pool expanded to 3 types: `ollama`, `remote_ollama`, `claude`
   - Auto-retry escalation: Local → Remote → Haiku (3 phases instead of 2)
+- **NEW: Multi-Model Routing** — `REMOTE_OLLAMA_MODEL_MAP` routes different complexities to different remote models
+  - E.g., C7-C8 → 32K model, C9 → 70B model on Mac Studio M4 Max (128GB unified memory)
+- **NEW: Mac Studio Standalone Mode** — Full ABCC stack runs on Mac via Docker + native Ollama
+  - `docker-compose.mac.yml` override disables Docker Ollama, points at native Metal-accelerated Ollama
+  - ARM64-compatible Dockerfile (multi-arch Go binary via TARGETARCH)
+  - 64K context Modelfile (Mac-only, zero RAM spill on 128GB unified memory)
+  - Setup script (`scripts/setup-mac.sh`) automates full Mac environment configuration
 - Smart resource pool for parallel execution (Ollama GPU + Remote + Claude API simultaneously)
 - Shared TypeScript types package (`@abcc/shared`) prevents API contract drift
 - WebSocket-driven real-time updates for agent status, task progress, alerts

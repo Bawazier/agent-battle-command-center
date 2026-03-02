@@ -19,6 +19,7 @@ import { ExecutorService } from './executor.js';
 import { AutoRetryService } from './autoRetryService.js';
 import { calculateTotalCost } from './costCalculator.js';
 import { calculateSavings } from './costSavingsCalculator.js';
+import { getRemoteModelForComplexity } from './resourcePool.js';
 import { config } from '../config.js';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -384,14 +385,27 @@ export class OrchestratorService {
       this.emitTaskUpdate(taskId);
       this.emitAgentUpdate(agentId, 'busy');
 
+      // Determine execution model based on routing tier
+      let execUseClaude = routing.modelTier !== 'ollama' && routing.modelTier !== 'remote_ollama';
+      let execModel: string | undefined;
+      let execEnv: Record<string, string> | undefined;
+
+      if (routing.modelTier === 'remote_ollama') {
+        execModel = getRemoteModelForComplexity(routing.complexity || 7);
+        execEnv = { OLLAMA_API_BASE: process.env.REMOTE_OLLAMA_URL || '' };
+      } else if (routing.modelTier === 'sonnet') {
+        execModel = 'anthropic/claude-sonnet-4-20250514';
+      }
+
       // Execute
       const execResult = await this.executor.executeTask({
         taskId,
         agentId,
         taskDescription: plan.description,
         expectedOutput: `Write code to: ${plan.description}`,
-        useClaude: routing.modelTier !== 'ollama' && routing.modelTier !== 'remote_ollama',
-        model: routing.modelTier === 'sonnet' ? 'anthropic/claude-sonnet-4-20250514' : undefined,
+        useClaude: execUseClaude,
+        model: execModel,
+        env: execEnv,
       });
 
       // Auto-retry validation
