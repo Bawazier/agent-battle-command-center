@@ -12,6 +12,9 @@
  */
 
 import type { Server as SocketIOServer } from 'socket.io';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('ResourcePool');
 
 export type ResourceType = 'ollama' | 'remote_ollama' | 'claude' | 'grok';
 
@@ -98,11 +101,11 @@ export class ResourcePoolService {
     if (isRemoteOllamaEnabled()) {
       this.activeTasks.set('remote_ollama', new Set());
       this.limits['remote_ollama'] = REMOTE_OLLAMA_SLOTS;
-      console.log(`[ResourcePool] Remote Ollama enabled: ${REMOTE_OLLAMA_URL} (${REMOTE_OLLAMA_SLOTS} slots, C${REMOTE_OLLAMA_MIN_COMPLEXITY}-C${REMOTE_OLLAMA_MAX_COMPLEXITY})`);
+      log.info('Remote Ollama enabled', { url: REMOTE_OLLAMA_URL, slots: REMOTE_OLLAMA_SLOTS, minComplexity: REMOTE_OLLAMA_MIN_COMPLEXITY, maxComplexity: REMOTE_OLLAMA_MAX_COMPLEXITY });
 
       // Validate remote models on startup (non-blocking)
       this.validateRemoteModels().catch((err) => {
-        console.error('[ResourcePool] Remote model validation failed:', err);
+        log.error('Remote model validation failed', { error: String(err) });
       });
     }
 
@@ -110,7 +113,7 @@ export class ResourcePoolService {
     if (process.env.XAI_API_KEY) {
       this.activeTasks.set('grok', new Set());
       this.limits['grok'] = 2;
-      console.log('[ResourcePool] Grok (xAI) enabled: 2 slots');
+      log.info('Grok (xAI) enabled', { slots: 2 });
     }
   }
 
@@ -128,7 +131,7 @@ export class ResourcePoolService {
       clearTimeout(timer);
 
       if (!response.ok) {
-        console.warn(`[ResourcePool] Remote Ollama health check failed: HTTP ${response.status}`);
+        log.warn('Remote Ollama health check failed', { status: response.status });
         return;
       }
 
@@ -138,14 +141,13 @@ export class ResourcePoolService {
       for (const entry of REMOTE_MODEL_MAP) {
         const found = availableModels.some((m) => m.startsWith(entry.model) || m === entry.model);
         if (found) {
-          console.log(`[ResourcePool] Remote model ${entry.model} (C${entry.min}-${entry.max}): ✓ available`);
+          log.info(`Remote model ${entry.model} (C${entry.min}-${entry.max}): ✓ available`);
         } else {
-          console.warn(`[ResourcePool] ⚠️  Remote model ${entry.model} (C${entry.min}-${entry.max}): NOT FOUND on ${REMOTE_OLLAMA_URL}`);
-          console.warn(`[ResourcePool]    Run: ollama pull ${entry.model}`);
+          log.warn(`⚠️  Remote model ${entry.model} (C${entry.min}-${entry.max}): NOT FOUND`, { url: REMOTE_OLLAMA_URL, hint: `Run: ollama pull ${entry.model}` });
         }
       }
     } catch (err) {
-      console.warn(`[ResourcePool] Could not validate remote models: ${err instanceof Error ? err.message : 'unknown error'}`);
+      log.warn('Could not validate remote models', { error: err instanceof Error ? err.message : 'unknown error' });
     }
   }
 
@@ -197,7 +199,7 @@ export class ResourcePoolService {
       maxSlots: this.limits[type],
     });
 
-    console.log(`[ResourcePool] Acquired ${type} slot for task ${taskId.substring(0, 8)} (${active.size}/${this.limits[type]})`);
+    log.info(`Acquired ${type} slot`, { taskId: taskId.substring(0, 8), active: active.size, max: this.limits[type] });
     return true;
   }
 
@@ -218,7 +220,7 @@ export class ResourcePoolService {
           maxSlots: this.limits[type],
         });
 
-        console.log(`[ResourcePool] Released ${type} slot for task ${taskId.substring(0, 8)} (${tasks.size}/${this.limits[type]})`);
+        log.info(`Released ${type} slot`, { taskId: taskId.substring(0, 8), active: tasks.size, max: this.limits[type] });
         return;
       }
     }
@@ -296,7 +298,7 @@ export class ResourcePoolService {
       throw new Error('Resource limit must be at least 1');
     }
     this.limits[type] = limit;
-    console.log(`[ResourcePool] Set ${type} limit to ${limit}`);
+    log.info(`Set ${type} limit`, { limit });
   }
 
   /**
@@ -313,7 +315,7 @@ export class ResourcePoolService {
     for (const tasks of this.activeTasks.values()) {
       tasks.clear();
     }
-    console.log('[ResourcePool] Cleared all active tasks');
+    log.info('Cleared all active tasks');
   }
 
   /**

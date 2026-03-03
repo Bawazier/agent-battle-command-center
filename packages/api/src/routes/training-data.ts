@@ -8,6 +8,9 @@ import { Router, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { TrainingDataService } from '../services/trainingDataService.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('TrainingDataRoute');
 
 const router: RouterType = Router();
 const prisma = new PrismaClient();
@@ -31,7 +34,7 @@ router.get('/', async (req, res) => {
     const data = await trainingDataService.getTrainingData(filters);
     res.json(data);
   } catch (error) {
-    console.error('Failed to fetch training data:', error);
+    log.error('Failed to fetch training data', { error: String(error) });
     res.status(500).json({ error: 'Failed to fetch training data' });
   }
 });
@@ -45,7 +48,7 @@ router.get('/stats', async (req, res) => {
     const stats = await trainingDataService.getStats();
     res.json(stats);
   } catch (error) {
-    console.error('Failed to fetch training data stats:', error);
+    log.error('Failed to fetch training data stats', { error: String(error) });
     res.status(500).json({ error: 'Failed to fetch training data stats' });
   }
 });
@@ -74,7 +77,7 @@ router.get('/export', async (req, res) => {
     res.setHeader('Content-Disposition', 'attachment; filename="training-data.jsonl"');
     res.send(jsonl);
   } catch (error) {
-    console.error('Failed to export training data:', error);
+    log.error('Failed to export training data', { error: String(error) });
     res.status(500).json({ error: 'Failed to export training data' });
   }
 });
@@ -95,7 +98,7 @@ router.get('/:id', async (req, res) => {
 
     res.json(dataset);
   } catch (error) {
-    console.error('Failed to fetch training data entry:', error);
+    log.error('Failed to fetch training data entry', { error: String(error) });
     res.status(500).json({ error: 'Failed to fetch training data entry' });
   }
 });
@@ -114,7 +117,7 @@ router.post('/:id/review', async (req, res) => {
     await trainingDataService.markForReview(req.params.id, data.notes);
     res.json({ success: true });
   } catch (error) {
-    console.error('Failed to mark for review:', error);
+    log.error('Failed to mark for review', { error: String(error) });
     res.status(500).json({ error: 'Failed to mark for review' });
   }
 });
@@ -144,7 +147,7 @@ router.patch('/:id', async (req, res) => {
 
     res.json(updated);
   } catch (error) {
-    console.error('Failed to update training data:', error);
+    log.error('Failed to update training data', { error: String(error) });
     res.status(500).json({ error: 'Failed to update training data' });
   }
 });
@@ -160,7 +163,7 @@ router.delete('/:id', async (req, res) => {
     });
     res.json({ success: true });
   } catch (error) {
-    console.error('Failed to delete training data:', error);
+    log.error('Failed to delete training data', { error: String(error) });
     res.status(500).json({ error: 'Failed to delete training data' });
   }
 });
@@ -178,7 +181,7 @@ router.get('/scheduler/status', (req, res) => {
     }
     res.json(scheduler.getStatus());
   } catch (error) {
-    console.error('Failed to get scheduler status:', error);
+    log.error('Failed to get scheduler status', { error: String(error) });
     res.status(500).json({ error: 'Failed to get scheduler status' });
   }
 });
@@ -197,7 +200,7 @@ router.post('/scheduler/export', async (req, res) => {
     const result = await scheduler.triggerExport();
     res.json(result);
   } catch (error) {
-    console.error('Failed to trigger export:', error);
+    log.error('Failed to trigger export', { error: String(error) });
     res.status(500).json({ error: 'Failed to trigger export' });
   }
 });

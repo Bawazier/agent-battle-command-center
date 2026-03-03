@@ -5,6 +5,9 @@ import { asyncHandler } from '../types/index.js';
 import { ExecutorService } from '../services/executor.js';
 import type { TaskQueueService } from '../services/taskQueue.js';
 import type { Server as SocketIOServer } from 'socket.io';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('ExecuteRoute');
 
 export const executeRouter: RouterType = Router();
 
@@ -75,7 +78,7 @@ executeRouter.post('/', asyncHandler(async (req, res) => {
         await taskQueue.handleTaskFailure(data.taskId, result.error || 'Unknown error');
       }
     } catch (error) {
-      console.error('Execution error:', error);
+      log.error('Execution error', { error: String(error) });
       await taskQueue.handleTaskFailure(
         data.taskId,
         error instanceof Error ? error.message : 'Unknown error'
@@ -86,9 +89,9 @@ executeRouter.post('/', asyncHandler(async (req, res) => {
   // Fire and forget — catch to prevent silent stuck tasks, always clean up dedup set
   executeAsync()
     .catch((err) => {
-      console.error(`[Execute] Unhandled async error for task ${data.taskId}:`, err);
+      log.error('Unhandled async error', { taskId: data.taskId, error: String(err) });
       return taskQueue.handleTaskFailure(data.taskId, err instanceof Error ? err.message : 'Unhandled execution error').catch(
-        (e) => console.error(`[Execute] Failed to mark task ${data.taskId} as failed:`, e)
+        (e) => log.error('Failed to mark task as failed', { taskId: data.taskId, error: String(e) })
       );
     })
     .finally(() => {

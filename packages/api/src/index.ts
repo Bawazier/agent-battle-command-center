@@ -3,6 +3,9 @@ import cors from 'cors';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { config } from './config.js';
+import { createLogger } from './logger.js';
+
+const log = createLogger('App');
 import { prisma } from './db/client.js';
 import { tasksRouter } from './routes/tasks.js';
 import { agentsRouter } from './routes/agents.js';
@@ -78,16 +81,16 @@ budgetService.setSocketIO(io);
 const codeReviewService = new CodeReviewService(prisma, io);
 const autoReviewEnabled = process.env.AUTO_CODE_REVIEW !== 'false';
 codeReviewService.setEnabled(autoReviewEnabled);
-console.log(`Code review service: ${codeReviewService.isEnabled() ? 'enabled' : 'disabled'}`);
+log.info('Code review service', { enabled: codeReviewService.isEnabled() });
 
 // Initialize async validation service (replaces sync auto-retry when enabled)
 const asyncValidation = process.env.ASYNC_VALIDATION_ENABLED !== 'false'
   ? new AsyncValidationService(prisma, io)
   : null;
 if (asyncValidation) {
-  console.log('Async validation service: enabled');
+  log.info('Async validation service: enabled');
 } else {
-  console.log('Async validation service: disabled (using sync auto-retry)');
+  log.info('Async validation service: disabled (using sync auto-retry)');
 }
 
 const taskQueue = new TaskQueueService(prisma, io, codeReviewService, asyncValidation || undefined);
@@ -114,14 +117,14 @@ if (asyncValidation) {
 // Initialize Battle Claw service (OpenClaw skill integration)
 const battleClawService = new BattleClawService(prisma, io);
 app.set('battleClawService', battleClawService);
-console.log('Battle Claw service: enabled');
+log.info('Battle Claw service: enabled');
 
 // Initialize Orchestrator service (CTO mission-based decomposition & execution)
 const orchestratorService = new OrchestratorService(prisma, io);
 app.set('orchestratorService', orchestratorService);
 chatService.setOrchestratorService(orchestratorService);
 battleClawService.setOrchestratorService(orchestratorService);
-console.log('Orchestrator service: enabled');
+log.info('Orchestrator service: enabled');
 
 // Routes
 app.use('/api/tasks', tasksRouter);
@@ -151,7 +154,7 @@ setupWebSocket(io);
 
 // Error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Error:', err);
+  log.error('Unhandled request error', { error: err.message, stack: err.stack });
   res.status(500).json({
     error: 'Internal server error',
     message: config.env === 'development' ? err.message : undefined,
@@ -162,12 +165,12 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 async function start() {
   try {
     await prisma.$connect();
-    console.log('Connected to database');
+    log.info('Connected to database');
 
     // Connect MCP Bridge (Redis pub/sub)
     await mcpBridge.connect();
     const mcpStatus = mcpBridge.getStatus();
-    console.log(`MCP Bridge: ${mcpStatus.enabled ? 'enabled' : 'disabled'}, ${mcpStatus.connected ? 'connected' : 'disconnected'}`);
+    log.info('MCP Bridge status', { enabled: mcpStatus.enabled, connected: mcpStatus.connected });
 
     // Start human escalation checker
     humanEscalation.startChecker();
@@ -179,10 +182,10 @@ async function start() {
     stuckTaskRecovery.start();
 
     httpServer.listen(config.server.port, config.server.host, () => {
-      console.log(`API server running on http://${config.server.host}:${config.server.port}`);
+      log.info('API server running', { host: config.server.host, port: config.server.port });
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    log.error('Failed to start server', { error: String(error) });
     process.exit(1);
   }
 }
@@ -191,7 +194,7 @@ start();
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down...');
+  log.info('SIGTERM received, shutting down...');
   humanEscalation.stopChecker();
   scheduler.stop();
   stuckTaskRecovery.stop();

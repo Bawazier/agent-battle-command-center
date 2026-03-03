@@ -7,6 +7,9 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { rateLimiter } from './rateLimiter.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('ComplexityAssessor');
 
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 
@@ -32,7 +35,7 @@ export async function getHaikuComplexityAssessment(
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
   if (!apiKey) {
-    console.warn('ANTHROPIC_API_KEY not set, skipping Haiku assessment');
+    log.warn('ANTHROPIC_API_KEY not set, skipping Haiku assessment');
     return null;
   }
 
@@ -85,14 +88,14 @@ Respond with ONLY a JSON object in this exact format:
 
     const content = response.content[0];
     if (content.type !== 'text') {
-      console.error('Unexpected response type from Haiku');
+      log.error('Unexpected response type from Haiku');
       return null;
     }
 
     // Extract JSON from response
     const jsonMatch = content.text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error('Could not extract JSON from Haiku response:', content.text);
+      log.error('Could not extract JSON from Haiku response', { response: content.text });
       return null;
     }
 
@@ -103,7 +106,7 @@ Respond with ONLY a JSON object in this exact format:
 
     return parsed;
   } catch (error) {
-    console.error('Haiku assessment failed:', error);
+    log.error('Haiku assessment failed', { error: error instanceof Error ? error.message : String(error) });
     return null;
   }
 }

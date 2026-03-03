@@ -42,6 +42,9 @@ import type { PrismaClient, Task, Agent } from '@prisma/client';
 import { getDualComplexityAssessment } from './complexityAssessor.js';
 import { budgetService } from './budgetService.js';
 import { isRemoteOllamaEnabled } from './resourcePool.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('TaskRouter');
 
 // Remote Ollama config from environment
 const REMOTE_OLLAMA_MIN_COMPLEXITY = parseInt(process.env.REMOTE_OLLAMA_MIN_COMPLEXITY || '7', 10);
@@ -313,9 +316,9 @@ export class TaskRouter {
           },
         });
 
-        console.log(`📊 Complexity assessment: ${complexity} (source: ${complexitySource})`);
+        log.info('📊 Complexity assessment', { complexity, source: complexitySource });
       } catch (error) {
-        console.warn('Dual assessment failed, using router complexity:', error);
+        log.warn('Dual assessment failed, using router complexity', { error: error instanceof Error ? error.message : String(error) });
         complexity = routerComplexity;
       }
     }
@@ -347,7 +350,7 @@ export class TaskRouter {
     // BUDGET CHECK: If Claude is blocked, force all tasks to Ollama
     const claudeBlocked = budgetService.isClaudeBlocked();
     if (claudeBlocked) {
-      console.log('💸 Budget exceeded - forcing task to Ollama (free)');
+      log.info('💸 Budget exceeded - forcing task to Ollama (free)');
     }
 
     // REMOTE OLLAMA (C7-C9 when remote is configured): Complex tasks → Remote server

@@ -14,8 +14,11 @@ import type { Server as SocketIOServer } from 'socket.io';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { config } from '../config.js';
+import { createLogger } from '../logger.js';
 import { ExecutorService } from './executor.js';
 import { isRemoteOllamaEnabled, getRemoteModelForComplexity } from './resourcePool.js';
+
+const log = createLogger('AutoRetry');
 
 // ---------------------------------------------------------------------------
 // Types
@@ -92,7 +95,7 @@ export class AutoRetryService {
       return { validated: true, phase: 'phase0', attempts: 0 };
     }
 
-    console.log(`[AutoRetry] Task ${taskId.substring(0, 8)} failed validation: ${phase0.output.substring(0, 200)}`);
+    log.info('Task failed validation', { taskId: taskId.substring(0, 8), output: phase0.output.substring(0, 200) });
 
     // Read the failed code for context
     const failedCode = await this.readTaskFile(task);
@@ -104,12 +107,12 @@ export class AutoRetryService {
     for (let attempt = 1; attempt <= MAX_OLLAMA_RETRIES; attempt++) {
       // Hard limit: stop if we've exhausted max total retries
       if (totalRetries >= MAX_TOTAL_RETRIES) {
-        console.log(`[AutoRetry] Reached max total retries (${MAX_TOTAL_RETRIES}) - aborting retry loop`);
+        log.warn('Reached max total retries - aborting retry loop', { maxTotalRetries: MAX_TOTAL_RETRIES });
         break;
       }
       totalRetries++;
       this.emitEvent('auto_retry_attempt', taskId, { phase: 1, attempt, tier: 'ollama' });
-      console.log(`[AutoRetry] Phase 1 attempt ${attempt}/${MAX_OLLAMA_RETRIES} (Ollama) for task ${taskId.substring(0, 8)}`);
+      log.info('Phase 1 attempt (Ollama)', { attempt, maxAttempts: MAX_OLLAMA_RETRIES, taskId: taskId.substring(0, 8) });
 
       const retryDesc = this.buildRetryDescription(
         task.description || task.title,
@@ -135,7 +138,7 @@ export class AutoRetryService {
         const revalidation = await this.runValidation(validationCmd, language);
         if (revalidation.success) {
           this.emitEvent('auto_retry_result', taskId, { phase: 1, attempt, success: true });
-          console.log(`[AutoRetry] Phase 1 succeeded for task ${taskId.substring(0, 8)} on attempt ${attempt}`);
+          log.info('Phase 1 succeeded', { taskId: taskId.substring(0, 8), attempt });
           return {
             validated: true,
             phase: 'phase1',
@@ -144,7 +147,7 @@ export class AutoRetryService {
           };
         }
         // Update failed code for next phase
-        console.log(`[AutoRetry] Phase 1 attempt ${attempt} still fails validation: ${revalidation.output.substring(0, 150)}`);
+        log.info('Phase 1 attempt still fails validation', { attempt, output: revalidation.output.substring(0, 150) });
       }
     }
 
@@ -159,12 +162,12 @@ export class AutoRetryService {
       for (let attempt = 1; attempt <= MAX_REMOTE_RETRIES; attempt++) {
         // Hard limit: stop if we've exhausted max total retries
         if (totalRetries >= MAX_TOTAL_RETRIES) {
-          console.log(`[AutoRetry] Reached max total retries (${MAX_TOTAL_RETRIES}) - skipping Phase 2`);
+          log.warn('Reached max total retries - skipping Phase 2', { maxTotalRetries: MAX_TOTAL_RETRIES });
           break;
         }
         totalRetries++;
         this.emitEvent('auto_retry_attempt', taskId, { phase: 2, attempt, tier: 'remote' });
-        console.log(`[AutoRetry] Phase 2 attempt ${attempt}/${MAX_REMOTE_RETRIES} (Remote Ollama) for task ${taskId.substring(0, 8)}`);
+        log.info('Phase 2 attempt (Remote Ollama)', { attempt, maxAttempts: MAX_REMOTE_RETRIES, taskId: taskId.substring(0, 8) });
 
         const retryDesc = this.buildRetryDescription(
           task.description || task.title,
@@ -188,7 +191,7 @@ export class AutoRetryService {
           const revalidation = await this.runValidation(validationCmd, language);
           if (revalidation.success) {
             this.emitEvent('auto_retry_result', taskId, { phase: 2, attempt, success: true });
-            console.log(`[AutoRetry] Phase 2 (Remote) succeeded for task ${taskId.substring(0, 8)} on attempt ${attempt}`);
+            log.info('Phase 2 (Remote) succeeded', { taskId: taskId.substring(0, 8), attempt });
             return {
               validated: true,
               phase: 'phase2',
@@ -196,7 +199,7 @@ export class AutoRetryService {
               attempts: MAX_OLLAMA_RETRIES + attempt,
             };
           }
-          console.log(`[AutoRetry] Phase 2 attempt ${attempt} still fails validation: ${revalidation.output.substring(0, 150)}`);
+          log.info('Phase 2 attempt still fails validation', { attempt, output: revalidation.output.substring(0, 150) });
         }
       }
       attemptsAfterPhase1 = MAX_OLLAMA_RETRIES + MAX_REMOTE_RETRIES;
@@ -209,7 +212,7 @@ export class AutoRetryService {
 
     // Check if we've hit the max retry limit before starting Phase 3
     if (totalRetries >= MAX_TOTAL_RETRIES) {
-      console.log(`[AutoRetry] Reached max total retries (${MAX_TOTAL_RETRIES}) - skipping Phase 3 escalation`);
+      log.warn('Reached max total retries - skipping Phase 3 escalation', { maxTotalRetries: MAX_TOTAL_RETRIES });
       return {
         validated: false,
         phase: 'phase3',
@@ -221,12 +224,12 @@ export class AutoRetryService {
     for (let attempt = 1; attempt <= MAX_HAIKU_RETRIES; attempt++) {
       // Hard limit: stop if we've exhausted max total retries
       if (totalRetries >= MAX_TOTAL_RETRIES) {
-        console.log(`[AutoRetry] Reached max total retries (${MAX_TOTAL_RETRIES}) - aborting Phase 3`);
+        log.warn('Reached max total retries - aborting Phase 3', { maxTotalRetries: MAX_TOTAL_RETRIES });
         break;
       }
       totalRetries++;
       this.emitEvent('auto_retry_attempt', taskId, { phase: 3, attempt, tier: 'haiku' });
-      console.log(`[AutoRetry] Phase 3 attempt ${attempt}/${MAX_HAIKU_RETRIES} (Haiku) for task ${taskId.substring(0, 8)}`);
+      log.info('Phase 3 attempt (Haiku)', { attempt, maxAttempts: MAX_HAIKU_RETRIES, taskId: taskId.substring(0, 8) });
 
       const retryDesc = this.buildRetryDescription(
         task.description || task.title,
@@ -248,7 +251,7 @@ export class AutoRetryService {
         const revalidation = await this.runValidation(validationCmd, language);
         if (revalidation.success) {
           this.emitEvent('auto_retry_result', taskId, { phase: 3, attempt, success: true });
-          console.log(`[AutoRetry] Phase 3 succeeded for task ${taskId.substring(0, 8)} on attempt ${attempt}`);
+          log.info('Phase 3 succeeded', { taskId: taskId.substring(0, 8), attempt });
           return {
             validated: true,
             phase: 'phase3',
@@ -256,7 +259,7 @@ export class AutoRetryService {
             attempts: attemptsAfterPhase1 + attempt,
           };
         }
-        console.log(`[AutoRetry] Phase 3 attempt ${attempt} still fails validation: ${revalidation.output.substring(0, 150)}`);
+        log.info('Phase 3 attempt still fails validation', { attempt, output: revalidation.output.substring(0, 150) });
       }
     }
 
@@ -264,7 +267,7 @@ export class AutoRetryService {
     const totalAttempts = attemptsAfterPhase1 + MAX_HAIKU_RETRIES;
     const finalValidation = await this.runValidation(validationCmd, language);
     this.emitEvent('auto_retry_result', taskId, { phase: 3, success: false, totalAttempts });
-    console.log(`[AutoRetry] All retries exhausted for task ${taskId.substring(0, 8)} after ${totalAttempts} attempts`);
+    log.warn('All retries exhausted', { taskId: taskId.substring(0, 8), totalAttempts });
 
     return {
       validated: false,

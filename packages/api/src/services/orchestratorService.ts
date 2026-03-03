@@ -22,6 +22,9 @@ import { calculateTotalCost } from './costCalculator.js';
 import { calculateSavings } from './costSavingsCalculator.js';
 import { getRemoteModelForComplexity } from './resourcePool.js';
 import { config } from '../config.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('Orchestrator');
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -104,7 +107,7 @@ export class OrchestratorService {
 
     // Run pipeline in background (don't await)
     this.runMission(mission.id).catch((err) => {
-      console.error(`[Orchestrator] Mission ${mission.id} failed:`, err);
+      log.error('Mission failed', { missionId: mission.id, error: err instanceof Error ? err.message : String(err) });
     });
 
     return mission.id;
@@ -281,7 +284,7 @@ export class OrchestratorService {
         if (i < taskIds.length - 1) {
           const isExtendedRest = (i + 1) % SUBTASK_REST_EVERY_N === 0;
           const restMs = isExtendedRest ? SUBTASK_EXTENDED_REST_MS : SUBTASK_REST_DELAY_MS;
-          console.log(`[Orchestrator] Subtask ${i + 1}/${taskIds.length} done, resting ${restMs}ms${isExtendedRest ? ' (extended)' : ''}`);
+          log.info('Subtask done, resting', { subtask: i + 1, total: taskIds.length, restMs, isExtendedRest });
           await new Promise((resolve) => setTimeout(resolve, restMs));
         }
       }
@@ -484,7 +487,7 @@ export class OrchestratorService {
           const reviewService = new CodeReviewService(this.prisma, this.io);
           const sentinelResult = await reviewService.triggerSentinelReview(taskId);
           if (sentinelResult && !sentinelResult.passed) {
-            console.log(`[Orchestrator] Sentinel review FAILED for task ${taskId}: ${sentinelResult.summary}`);
+            log.info('Sentinel review FAILED for task', { taskId, summary: sentinelResult.summary });
             this.emitMissionEvent('mission_sentinel_failed', {
               missionId,
               taskId,
@@ -496,7 +499,7 @@ export class OrchestratorService {
             // The CTO review at the end will catch critical issues
           }
         } catch (err) {
-          console.error(`[Orchestrator] Sentinel review error for task ${taskId}:`, err);
+          log.error('Sentinel review error', { taskId, error: err instanceof Error ? err.message : String(err) });
         }
       }
 
@@ -646,7 +649,7 @@ export class OrchestratorService {
 
     this.emitMissionEvent('mission_killed', { missionId, abortedTasks, releasedAgents });
 
-    console.log(`[Orchestrator] Mission ${missionId} killed: ${abortedTasks} tasks aborted, ${releasedAgents} agents released`);
+    log.info('Mission killed', { missionId, abortedTasks, releasedAgents });
     return { abortedTasks, releasedAgents };
   }
 
@@ -920,7 +923,7 @@ export class OrchestratorService {
         data: { updatedAt: new Date() },
       });
     } catch (err) {
-      console.error(`[Orchestrator] Failed to post to chat:`, err);
+      log.error('Failed to post to chat', { error: err instanceof Error ? err.message : String(err) });
     }
   }
 

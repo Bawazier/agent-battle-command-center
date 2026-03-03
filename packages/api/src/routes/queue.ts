@@ -5,6 +5,9 @@ import { asyncHandler } from '../types/index.js';
 import type { TaskQueueService } from '../services/taskQueue.js';
 import { TaskRouter } from '../services/taskRouter.js';
 import { ResourcePoolService } from '../services/resourcePool.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('QueueRoute');
 
 export const queueRouter: RouterType = Router();
 
@@ -332,7 +335,7 @@ queueRouter.post('/parallel-assign', asyncHandler(async (req, res) => {
     } catch (error) {
       // Release resource if assignment failed
       resourcePool.release(task.id);
-      console.error(`[parallel-assign] Failed to assign task ${task.id}:`, error);
+      log.error('Failed to assign task', { taskId: task.id, error: String(error) });
       continue;
     }
   }

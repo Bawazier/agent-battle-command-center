@@ -11,6 +11,9 @@ import type { PrismaClient } from '@prisma/client';
 import { TrainingDataService } from './trainingDataService.js';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('Scheduler');
 
 export interface SchedulerConfig {
   trainingExportEnabled: boolean;
@@ -55,7 +58,7 @@ export class SchedulerService {
    * Start all scheduled tasks
    */
   start(): void {
-    console.log('SchedulerService: Starting scheduled tasks');
+    log.info('Starting scheduled tasks');
 
     if (this.config.trainingExportEnabled) {
       this.startTrainingExport();
@@ -66,7 +69,7 @@ export class SchedulerService {
    * Stop all scheduled tasks
    */
   stop(): void {
-    console.log('SchedulerService: Stopping scheduled tasks');
+    log.info('Stopping scheduled tasks');
 
     if (this.exportTimer) {
       clearInterval(this.exportTimer);
@@ -80,20 +83,20 @@ export class SchedulerService {
   private startTrainingExport(): void {
     const intervalMs = this.config.trainingExportIntervalHours * 60 * 60 * 1000;
 
-    console.log(`SchedulerService: Training export scheduled every ${this.config.trainingExportIntervalHours} hours`);
-    console.log(`SchedulerService: Export path: ${this.config.trainingExportPath}`);
+    log.info('Training export scheduled', { intervalHours: this.config.trainingExportIntervalHours });
+    log.info('Export path configured', { exportPath: this.config.trainingExportPath });
 
     // Run immediately on startup (after a short delay)
     setTimeout(() => {
       this.runTrainingExport().catch(err => {
-        console.error('SchedulerService: Initial training export failed:', err);
+        log.error('Initial training export failed', { error: String(err) });
       });
     }, 10000); // 10 second delay on startup
 
     // Then run on interval
     this.exportTimer = setInterval(() => {
       this.runTrainingExport().catch(err => {
-        console.error('SchedulerService: Scheduled training export failed:', err);
+        log.error('Scheduled training export failed', { error: String(err) });
       });
     }, intervalMs);
   }
@@ -103,7 +106,7 @@ export class SchedulerService {
    */
   async runTrainingExport(): Promise<{ success: boolean; path?: string; count?: number; error?: string }> {
     try {
-      console.log('SchedulerService: Starting training data export...');
+      log.info('Starting training data export...');
 
       // Ensure export directory exists
       await fs.mkdir(this.config.trainingExportPath, { recursive: true });
@@ -114,7 +117,7 @@ export class SchedulerService {
       });
 
       if (data.length === 0) {
-        console.log('SchedulerService: No training data to export');
+        log.info('No training data to export');
         return { success: true, count: 0 };
       }
 
@@ -168,7 +171,7 @@ export class SchedulerService {
 
       this.lastExportTime = new Date();
 
-      console.log(`SchedulerService: Exported ${data.length} training examples to ${filename}`);
+      log.info('Exported training examples', { count: data.length, filename });
 
       // Clean up old exports
       await this.cleanupOldExports();
@@ -176,7 +179,7 @@ export class SchedulerService {
       return { success: true, path: filepath, count: data.length };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('SchedulerService: Training export failed:', errorMessage);
+      log.error('Training export failed', { error: errorMessage });
       return { success: false, error: errorMessage };
     }
   }
@@ -198,11 +201,11 @@ export class SchedulerService {
 
         if (now - stats.mtime.getTime() > retentionMs) {
           await fs.unlink(filepath);
-          console.log(`SchedulerService: Deleted old export: ${file}`);
+          log.info('Deleted old export', { file });
         }
       }
     } catch (error) {
-      console.error('SchedulerService: Cleanup failed:', error);
+      log.error('Cleanup failed', { error: String(error) });
     }
   }
 

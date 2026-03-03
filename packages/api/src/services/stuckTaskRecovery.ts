@@ -23,6 +23,9 @@ import type { Task, Agent, AgentType } from '../types/index.js';
 import { ResourcePoolService } from './resourcePool.js';
 import { TaskAssigner } from './taskAssigner.js';
 import { mcpBridge } from './mcpBridge.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('StuckTaskRecovery');
 
 export interface StuckTaskRecoveryConfig {
   /** Task timeout in milliseconds (default: 10 minutes) */
@@ -81,28 +84,28 @@ export class StuckTaskRecoveryService {
    */
   start(): void {
     if (!this.config.enabled) {
-      console.log('StuckTaskRecoveryService: Disabled via configuration');
+      log.info('Disabled via configuration');
       return;
     }
 
     if (this.checkInterval) {
-      console.log('StuckTaskRecoveryService: Already running');
+      log.info('Already running');
       return;
     }
 
-    console.log(`StuckTaskRecoveryService: Starting (timeout: ${this.config.taskTimeoutMs / 1000}s, check interval: ${this.config.checkIntervalMs / 1000}s)`);
+    log.info('Starting', { timeoutSec: this.config.taskTimeoutMs / 1000, checkIntervalSec: this.config.checkIntervalMs / 1000 });
 
     // Run initial check after a short delay
     setTimeout(() => {
       this.checkAndRecoverStuckTasks().catch(err => {
-        console.error('StuckTaskRecoveryService: Initial check failed:', err);
+        log.error('Initial check failed', { error: err });
       });
     }, 5000);
 
     // Then run periodically
     this.checkInterval = setInterval(() => {
       this.checkAndRecoverStuckTasks().catch(err => {
-        console.error('StuckTaskRecoveryService: Periodic check failed:', err);
+        log.error('Periodic check failed', { error: err });
       });
     }, this.config.checkIntervalMs);
   }
@@ -114,7 +117,7 @@ export class StuckTaskRecoveryService {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
-      console.log('StuckTaskRecoveryService: Stopped');
+      log.info('Stopped');
     }
   }
 
@@ -138,7 +141,7 @@ async forceRecoverAll(): Promise<RecoveryResult[]> {
   const results: RecoveryResult[] = [];
 
   if (stuckTasks.length > 0) {
-    console.log(`StuckTaskRecoveryService: Force recovering ${stuckTasks.length} task(s)`);
+    log.info('Force recovering tasks', { count: stuckTasks.length });
 
     for (const task of stuckTasks) {
       try {
@@ -146,7 +149,7 @@ async forceRecoverAll(): Promise<RecoveryResult[]> {
         results.push(result);
         this.addToHistory(result);
       } catch (error) {
-        console.error(`Force recovery failed for task ${task.id}:`, error);
+        log.error('Force recovery failed for task', { taskId: task.id, error });
       }
     }
   }
@@ -166,7 +169,7 @@ async forceRecoverAll(): Promise<RecoveryResult[]> {
     }) : null;
 
     if (!hasTask) {
-      console.log(`StuckTaskRecoveryService: Resetting orphaned busy agent ${agent.id} (no active task)`);
+      log.info('Resetting orphaned busy agent (no active task)', { agentId: agent.id });
       await this.prisma.agent.update({
         where: { id: agent.id },
         data: { status: 'idle', currentTaskId: null },
@@ -202,7 +205,7 @@ async forceRecoverAll(): Promise<RecoveryResult[]> {
       return [];
     }
 
-    console.log(`StuckTaskRecoveryService: Found ${stuckTasks.length} stuck task(s)`);
+    log.warn('Found stuck task(s)', { count: stuckTasks.length });
 
     const results: RecoveryResult[] = [];
 
@@ -212,7 +215,7 @@ async forceRecoverAll(): Promise<RecoveryResult[]> {
         results.push(result);
         this.addToHistory(result);
       } catch (error) {
-        console.error(`StuckTaskRecoveryService: Failed to recover task ${task.id}:`, error);
+        log.error('Failed to recover task', { taskId: task.id, error });
       }
     }
 
@@ -248,7 +251,7 @@ async forceRecoverAll(): Promise<RecoveryResult[]> {
     const timeoutMinutes = Math.round(this.config.taskTimeoutMs / 60000);
     const errorMessage = `Task timed out after ${timeoutMinutes} minutes (stuck in in_progress state)`;
 
-    console.log(`StuckTaskRecoveryService: Recovering task ${task.id} (${task.title}) - stuck for ${Math.round(stuckDurationMs / 1000)}s`);
+    log.warn('Recovering task', { taskId: task.id, title: task.title, stuckDurationSec: Math.round(stuckDurationMs / 1000) });
 
     // 1. Release file locks
     await this.taskAssigner.releaseFileLocks(task.id);
@@ -327,7 +330,7 @@ async forceRecoverAll(): Promise<RecoveryResult[]> {
 
     // 8. Publish to MCP Gateway
     mcpBridge.publishTaskFailed(task.id, errorMessage).catch(err => {
-      console.error('StuckTaskRecoveryService: Failed to publish to MCP:', err);
+      log.error('Failed to publish to MCP', { error: err });
     });
 
     return {

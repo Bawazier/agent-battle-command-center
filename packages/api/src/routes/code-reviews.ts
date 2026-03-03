@@ -4,6 +4,9 @@ import { prisma } from '../db/client.js';
 import { asyncHandler } from '../types/index.js';
 import type { Server as SocketIOServer } from 'socket.io';
 import type { CodeReviewService } from '../services/codeReviewService.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('CodeReviewRoute');
 
 export const codeReviewsRouter: RouterType = Router();
 
@@ -177,7 +180,7 @@ codeReviewsRouter.post('/trigger/:taskId', asyncHandler(async (req, res) => {
 
   // Trigger the review asynchronously
   codeReviewService.triggerReview(req.params.taskId, null).catch((error) => {
-    console.error('Code review failed:', error);
+    log.error('Code review failed', { error: String(error) });
   });
 
   res.json({

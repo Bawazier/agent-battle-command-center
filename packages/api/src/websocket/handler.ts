@@ -1,5 +1,8 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io';
 import { config } from '../config.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('WebSocket');
 
 // Track connections per IP to prevent DoS
 const connectionsPerIP = new Map<string, number>();
@@ -46,17 +49,17 @@ export function setupWebSocket(io: SocketIOServer): void {
   });
 
   io.on('connection', (socket: Socket) => {
-    console.log(`Client connected: ${socket.id}`);
+    log.debug('Client connected', { socketId: socket.id });
 
     // Join rooms based on what the client wants to subscribe to
     socket.on('subscribe', (room: string) => {
       socket.join(room);
-      console.log(`Client ${socket.id} joined room: ${room}`);
+      log.debug('Client joined room', { socketId: socket.id, room });
     });
 
     socket.on('unsubscribe', (room: string) => {
       socket.leave(room);
-      console.log(`Client ${socket.id} left room: ${room}`);
+      log.debug('Client left room', { socketId: socket.id, room });
     });
 
     // Client can request current state
@@ -70,11 +73,11 @@ export function setupWebSocket(io: SocketIOServer): void {
     });
 
     socket.on('disconnect', (reason) => {
-      console.log(`Client disconnected: ${socket.id}, reason: ${reason}`);
+      log.debug('Client disconnected', { socketId: socket.id, reason });
     });
 
     socket.on('error', (error) => {
-      console.error(`Socket error for ${socket.id}:`, error);
+      log.error('Socket error', { socketId: socket.id, error: String(error) });
     });
   });
 }

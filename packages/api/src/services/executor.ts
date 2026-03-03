@@ -1,5 +1,8 @@
 import { config } from '../config.js';
 import type { ExecuteTaskRequest, ExecuteTaskResponse, TaskMetrics } from '../types/index.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('Executor');
 
 // Timeout constants (ms)
 const EXECUTE_TIMEOUT_MS = 600_000; // 10 min — long tasks (C7-C9)
@@ -95,7 +98,7 @@ export class ExecutorService {
 
       return response.ok;
     } catch (error) {
-      console.error('Abort execution error:', error);
+      log.error('Abort execution error', { error: error instanceof Error ? error.message : String(error) });
       return false;
     }
   }

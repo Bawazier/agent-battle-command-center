@@ -1,5 +1,8 @@
 import { config } from '../config.js';
 import { prisma } from '../db/client.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('Chat');
 import type { Server as SocketIOServer } from 'socket.io';
 import type { Conversation, ChatMessage } from '../types/index.js';
 import type { OrchestratorService } from './orchestratorService.js';
@@ -120,7 +123,7 @@ export class ChatService {
             `📦 **[Download Mission Files](${downloadUrl})** — Click the link to get your code as a ZIP bundle.`,
           );
         } catch (error: unknown) {
-          console.error('Failed to generate download link:', error);
+          log.error('Failed to generate download link', { error: error instanceof Error ? error.message : String(error) });
           await this.postNonStreamingMessage(conversationId, '❌ Failed to generate download link.');
         }
 
@@ -164,7 +167,7 @@ export class ChatService {
               `🚀 **[GitHub Repository Created](${repoUrl})** — Your code has been pushed to a new GitHub repository.`,
             );
           } catch (error: unknown) {
-            console.error('Failed to create GitHub repository:', error);
+            log.error('Failed to create GitHub repository', { error: error instanceof Error ? error.message : String(error) });
             const errorMsg = error instanceof Error ? error.message : 'Unknown error';
             await this.postNonStreamingMessage(
               conversationId,
@@ -344,7 +347,7 @@ export class ChatService {
               });
             }
           } catch (error) {
-            console.error('Failed to clarify intent:', error);
+            log.error('Failed to clarify intent', { error: error instanceof Error ? error.message : String(error) });
             // Fallback: start mission without clarification
             await this.orchestratorService.startMission({
               prompt: content,
@@ -482,7 +485,7 @@ export class ChatService {
       );
 
       if (!pushResponse.ok) {
-        console.error(`Failed to push file ${fileName}:`, await pushResponse.text());
+        log.error('Failed to push file', { fileName, status: pushResponse.status });
         // Continue pushing other files even if one fails
       }
     }

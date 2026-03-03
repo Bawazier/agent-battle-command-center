@@ -20,6 +20,9 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { config } from '../config.js';
 import { ExecutorService } from './executor.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('AsyncValidation');
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,7 +134,7 @@ export class AsyncValidationService {
       }
     }
     if (removed > 0) {
-      console.log(`[AsyncValidation] Cleaned up ${removed} old validation results (${this.validationResults.size} remaining)`);
+      log.info('Cleaned up old validation results', { removed, remaining: this.validationResults.size });
     }
   }
 
@@ -145,7 +148,7 @@ export class AsyncValidationService {
     this.pendingCount++;
     this._doValidation(taskId)
       .catch((err) => {
-        console.error(`[AsyncValidation] Unexpected error validating ${taskId.substring(0, 8)}:`, err);
+        log.error('Unexpected error validating task', { taskId: taskId.substring(0, 8), error: err instanceof Error ? err.message : String(err) });
         this.validationResults.set(taskId, {
           taskId,
           passed: false,
@@ -176,10 +179,10 @@ export class AsyncValidationService {
       .then((results) => {
         this.lastRetryResults = results;
         this.retryInProgress = false;
-        console.log(`[AsyncValidation] Retry queue complete: ${results.saved}/${results.retried} saved`);
+        log.info('Retry queue complete', { saved: results.saved, retried: results.retried });
       })
       .catch((err) => {
-        console.error('[AsyncValidation] Retry queue error:', err);
+        log.error('Retry queue error', { error: err instanceof Error ? err.message : String(err) });
         this.retryInProgress = false;
       });
     return { started: true, count };
@@ -218,7 +221,7 @@ export class AsyncValidationService {
       // Phase 1: Ollama retry
       for (let attempt = 1; attempt <= MAX_OLLAMA_RETRIES; attempt++) {
         this.emitEvent('auto_retry_attempt', entry.taskId, { phase: 1, attempt, tier: 'ollama' });
-        console.log(`[AsyncValidation] Retry Phase 1 attempt ${attempt}/${MAX_OLLAMA_RETRIES} (Ollama) for ${shortId}`);
+        log.info('Retry Phase 1 attempt (Ollama)', { attempt, maxAttempts: MAX_OLLAMA_RETRIES, taskId: shortId });
 
         const retryDesc = this.buildRetryDescription(entry.description, entry.validationError, entry.failedCode, 'ollama');
         const cx = entry.complexity || 5;
@@ -237,7 +240,7 @@ export class AsyncValidationService {
           const revalidation = await this.runValidation(entry.validationCommand, entry.language);
           if (revalidation.success) {
             this.emitEvent('auto_retry_result', entry.taskId, { phase: 1, attempt, success: true });
-            console.log(`[AsyncValidation] Phase 1 saved ${shortId} on attempt ${attempt}`);
+            log.info('Phase 1 saved task', { taskId: shortId, attempt });
             this.validationResults.set(entry.taskId, {
               taskId: entry.taskId,
               passed: true,
@@ -262,7 +265,7 @@ export class AsyncValidationService {
       // Phase 2: Haiku escalation
       for (let attempt = 1; attempt <= MAX_HAIKU_RETRIES; attempt++) {
         this.emitEvent('auto_retry_attempt', entry.taskId, { phase: 2, attempt, tier: 'haiku' });
-        console.log(`[AsyncValidation] Retry Phase 2 attempt ${attempt}/${MAX_HAIKU_RETRIES} (Haiku) for ${shortId}`);
+        log.info('Retry Phase 2 attempt (Haiku)', { attempt, maxAttempts: MAX_HAIKU_RETRIES, taskId: shortId });
 
         const retryDesc = this.buildRetryDescription(
           entry.description,
@@ -284,7 +287,7 @@ export class AsyncValidationService {
           const revalidation = await this.runValidation(entry.validationCommand, entry.language);
           if (revalidation.success) {
             this.emitEvent('auto_retry_result', entry.taskId, { phase: 2, attempt, success: true });
-            console.log(`[AsyncValidation] Phase 2 saved ${shortId} on attempt ${attempt}`);
+            log.info('Phase 2 saved task', { taskId: shortId, attempt });
             this.validationResults.set(entry.taskId, {
               taskId: entry.taskId,
               passed: true,
@@ -303,7 +306,7 @@ export class AsyncValidationService {
       if (!saved) {
         const finalValidation = await this.runValidation(entry.validationCommand, entry.language);
         this.emitEvent('auto_retry_result', entry.taskId, { phase: 2, success: false });
-        console.log(`[AsyncValidation] All retries exhausted for ${shortId}`);
+        log.info('All retries exhausted', { taskId: shortId });
         this.validationResults.set(entry.taskId, {
           taskId: entry.taskId,
           passed: false,
@@ -392,7 +395,7 @@ export class AsyncValidationService {
       });
     } else {
       this.emitEvent('task_validation_failed', taskId, { error: result.output.substring(0, 200) });
-      console.log(`[AsyncValidation] Task ${taskId.substring(0, 8)} failed validation: ${result.output.substring(0, 200)}`);
+      log.info('Task failed validation', { taskId: taskId.substring(0, 8), error: result.output.substring(0, 200) });
 
       // Read failed code for retry context
       const failedCode = await this.readTaskFile(task.description || task.title);

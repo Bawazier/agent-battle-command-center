@@ -27,6 +27,9 @@ import { ExecutorService } from './executor.js';
 import { AutoRetryService } from './autoRetryService.js';
 import type { AsyncValidationService } from './asyncValidationService.js';
 import { resolveModelOverride } from './modelResolver.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('TaskExecutor');
 
 export class TaskExecutor {
   private trainingDataService: TrainingDataService;
@@ -99,9 +102,7 @@ export class TaskExecutor {
       try {
         const agentOutput = JSON.parse(result.output as string);
         if (this.detectTestFailures(agentOutput)) {
-          console.warn(
-            `[TaskExecutor] Task ${taskId} reported success but has test failures - redirecting to failure handler`
-          );
+          log.warn('Task reported success but has test failures - redirecting to failure handler', { taskId });
           const failureReason = agentOutput.failure_reason
             || agentOutput.test_results
             || 'Tests failed but task was reported as successful';
@@ -117,7 +118,7 @@ export class TaskExecutor {
     if (this.autoRetryService) {
       const retryResult = await this.autoRetryService.validateAndRetry(taskId, result);
       if (!retryResult.validated) {
-        console.warn(`[TaskExecutor] Auto-retry exhausted for task ${taskId}: ${retryResult.finalError}`);
+        log.warn('Auto-retry exhausted for task', { taskId, finalError: retryResult.finalError });
         await this.handleTaskFailure(taskId, `Auto-retry failed: ${retryResult.finalError}`);
         return;
       }
@@ -125,7 +126,7 @@ export class TaskExecutor {
         result = retryResult.executionResult; // Use retried result
       }
       if (retryResult.phase !== 'skipped') {
-        console.log(`[TaskExecutor] Task ${taskId} validated at ${retryResult.phase} (${retryResult.attempts} retries)`);
+        log.info('Task validated', { taskId, phase: retryResult.phase, retries: retryResult.attempts });
       }
     }
 
@@ -186,7 +187,7 @@ export class TaskExecutor {
     // Capture training data (async, non-blocking)
     if (task.assignedAgentId) {
       this.captureTrainingData(taskId, task.assignedAgentId, result, true).catch((error) => {
-        console.error('Failed to capture training data:', error);
+        log.error('Failed to capture training data', { error: String(error) });
       });
     }
 
@@ -197,7 +198,7 @@ export class TaskExecutor {
 
     // Publish to MCP Gateway (async, non-blocking)
     mcpBridge.publishTaskCompleted(taskId, result).catch((error) => {
-      console.error('Failed to publish task completion to MCP:', error);
+      log.error('Failed to publish task completion to MCP', { error: String(error) });
     });
 
     // === ASYNC VALIDATION (fire-and-forget, non-blocking) ===
@@ -235,7 +236,7 @@ export class TaskExecutor {
     // Capture training data for failed execution (max iterations only)
     if (task.currentIteration >= task.maxIterations && task.assignedAgentId) {
       this.captureTrainingData(taskId, task.assignedAgentId, { error }, false).catch((err) => {
-        console.error('Failed to capture training data:', err);
+        log.error('Failed to capture training data', { error: String(err) });
       });
     }
 
@@ -308,7 +309,7 @@ export class TaskExecutor {
 
     // Publish to MCP Gateway (async, non-blocking)
     mcpBridge.publishTaskFailed(taskId, error || 'Max iterations reached').catch((err) => {
-      console.error('Failed to publish task failure to MCP:', err);
+      log.error('Failed to publish task failure to MCP', { error: String(err) });
     });
 
     // Emit alert
@@ -360,9 +361,9 @@ export class TaskExecutor {
       ].join('\n');
 
       await fs.writeFile(filepath, content, 'utf-8');
-      console.log(`Saved task output to: ${filename}`);
+      log.info('Saved task output', { filename });
     } catch (error) {
-      console.error('Failed to save task output:', error);
+      log.error('Failed to save task output', { error: String(error) });
       // Don't fail the task if file saving fails
     }
   }
@@ -412,7 +413,7 @@ export class TaskExecutor {
 
     // Auto-assign next pending task (async, non-blocking)
     this.autoAssignNextTask(agentId).catch((error) => {
-      console.error('Auto-assign after completion failed:', error);
+      log.error('Auto-assign after completion failed', { error: String(error) });
     });
   }
 
@@ -461,7 +462,7 @@ export class TaskExecutor {
 
     // Auto-assign next pending task (async, non-blocking)
     this.autoAssignNextTask(agentId).catch((error) => {
-      console.error('Auto-assign after failure failed:', error);
+      log.error('Auto-assign after failure failed', { error: String(error) });
     });
   }
 
@@ -481,7 +482,7 @@ export class TaskExecutor {
     }
 
     this.codeReviewService.triggerReview(taskId, executedByModel).catch((error) => {
-      console.error('Failed to trigger code review:', error);
+      log.error('Failed to trigger code review', { error: String(error) });
     });
   }
 
@@ -540,7 +541,7 @@ export class TaskExecutor {
   }
 
   private emitTaskUpdate(task: Task): void {
-    console.log(`[TaskExecutor] Emitting task_updated for task ${task.id}, status: ${task.status}`);
+    log.debug('Emitting task_updated', { taskId: task.id, status: task.status });
     this.io.emit('task_updated', { type: 'task_updated', payload: task, timestamp: new Date() });
   }
 
@@ -565,7 +566,7 @@ export class TaskExecutor {
       });
 
       if (!task) {
-        console.warn(`Task ${taskId} not found - cannot capture training data`);
+        log.warn('Task not found - cannot capture training data', { taskId });
         return;
       }
 
@@ -576,7 +577,7 @@ export class TaskExecutor {
       });
 
       if (!agent) {
-        console.warn(`Agent ${agentId} not found - cannot capture training data`);
+        log.warn('Agent not found - cannot capture training data', { agentId });
         return;
       }
 
@@ -629,11 +630,9 @@ export class TaskExecutor {
         usedClaude,
       });
 
-      console.log(
-        `✅ Captured ${usedClaude ? 'Claude' : 'local'} training data for task ${taskId.substring(0, 8)}`
-      );
+      log.info('✅ Captured training data', { taskId: taskId.substring(0, 8), model: usedClaude ? 'Claude' : 'local' });
     } catch (error) {
-      console.error('Failed to capture training data:', error);
+      log.error('Failed to capture training data', { error: String(error) });
       // Don't throw - we don't want to break task completion
     }
   }
@@ -670,7 +669,7 @@ export class TaskExecutor {
       });
 
       if (!pendingTask) {
-        console.log(`📭 No pending tasks for ${agent.name} - staying idle`);
+        log.info('📭 No pending tasks - staying idle', { agent: agent.name });
         return;
       }
 
@@ -693,7 +692,7 @@ export class TaskExecutor {
           (decision.modelTier === 'sonnet' && agent.agentType.name === 'qa');
 
         if (!agentMatchesDecision) {
-          console.log(`⏭️ Task ${pendingTask.id.substring(0, 8)} requires ${decision.modelTier}, ${agent.name} is ${agent.agentType.name} - skipping`);
+          log.info('⏭️ Task requires different tier - skipping', { taskId: pendingTask.id.substring(0, 8), requiredTier: decision.modelTier, agent: agent.name, agentType: agent.agentType.name });
           return;
         }
       }
@@ -701,7 +700,7 @@ export class TaskExecutor {
       // Assign the task
       await this.taskAssigner.assignTask(pendingTask.id, agentId);
 
-      console.log(`🔄 Auto-assigned task "${pendingTask.title}" to ${agent.name}`);
+      log.info('🔄 Auto-assigned task', { taskTitle: pendingTask.title, agent: agent.name });
 
       // Emit notification for UI
       this.io.emit('alert', {
@@ -727,7 +726,7 @@ export class TaskExecutor {
             useClaude = modelOverride.useClaude;
             execModel = modelOverride.model;
             execEnv = modelOverride.env;
-            console.log(`🎯 Using model override for ${agent.name}: ${preferredModel} → ${modelOverride.model}`);
+            log.info('🎯 Using model override', { agent: agent.name, preferredModel, resolvedModel: modelOverride.model });
           } else if (decision.modelTier === 'remote_ollama') {
             // Remote Ollama: use model map (complexity-based) and URL override
             useClaude = false;
@@ -761,7 +760,7 @@ export class TaskExecutor {
             await this.handleTaskFailure(pendingTask.id, result.error || 'Unknown error');
           }
         } catch (error) {
-          console.error('Auto-execution error:', error);
+          log.error('Auto-execution error', { error: String(error) });
           await this.handleTaskFailure(
             pendingTask.id,
             error instanceof Error ? error.message : 'Unknown error'
@@ -773,7 +772,7 @@ export class TaskExecutor {
       executeAsync();
 
     } catch (error) {
-      console.error('Auto-assign failed:', error);
+      log.error('Auto-assign failed', { error: String(error) });
       // Don't throw - auto-assign is a nice-to-have, not critical
     }
   }

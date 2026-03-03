@@ -8,6 +8,9 @@
 import type { PrismaClient, Task, Agent } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 import { TaskRouter } from './taskRouter.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('TrainingData');
 
 export interface TrainingDataInput {
   taskId: string;
@@ -56,7 +59,7 @@ export class TrainingDataService {
       });
 
       if (!task) {
-        console.warn(`Task ${input.taskId} not found - cannot capture training data`);
+        log.warn('Task not found - cannot capture training data', { taskId: input.taskId });
         return;
       }
 
@@ -70,7 +73,7 @@ export class TrainingDataService {
       });
 
       if (!agent) {
-        console.warn(`Agent ${input.agentId} not found - cannot capture training data`);
+        log.warn('Agent not found - cannot capture training data', { agentId: input.agentId });
         return;
       }
 
@@ -150,11 +153,9 @@ export class TrainingDataService {
         await this.prisma.trainingDataset.create({ data });
       }
 
-      console.log(
-        `✅ Captured ${isClaudeExecution ? 'Claude' : 'local'} execution for task ${input.taskId}`
-      );
+      log.info('✅ Captured execution for task', { type: isClaudeExecution ? 'Claude' : 'local', taskId: input.taskId });
     } catch (error) {
-      console.error('Failed to capture training data:', error);
+      log.error('Failed to capture training data', { error: error instanceof Error ? error.message : String(error) });
       // Don't throw - we don't want to break task execution
     }
   }

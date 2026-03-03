@@ -1,5 +1,8 @@
 import type { ExecutionLog } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('CostCalculator');
 
 /**
  * Cost rates per million tokens (input / output)
@@ -112,7 +115,7 @@ function getModelRate(modelName: string | null): { input: number; output: number
   }
 
   // Default to zero cost for unknown models
-  console.warn(`Unknown model for cost calculation: ${modelName}`);
+  log.warn('Unknown model for cost calculation', { modelName });
   return { input: 0, output: 0 };
 }
 

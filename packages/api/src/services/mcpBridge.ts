@@ -7,14 +7,9 @@
  */
 
 import { createClient, RedisClientType } from 'redis';
+import { createLogger } from '../logger.js';
 
-// Simple logger (console-based)
-const logger = {
-  info: (...args: unknown[]) => console.log('[MCP Bridge]', ...args),
-  warn: (...args: unknown[]) => console.warn('[MCP Bridge]', ...args),
-  error: (...args: unknown[]) => console.error('[MCP Bridge]', ...args),
-  debug: (...args: unknown[]) => console.debug('[MCP Bridge]', ...args),
-};
+const logger = createLogger('MCPBridge');
 
 export interface TaskUpdateEvent {
   type: 'task_created' | 'task_updated' | 'task_completed' | 'task_assigned' | 'task_failed';
@@ -32,11 +27,11 @@ export class MCPBridgeService {
     this.useMcp = process.env.USE_MCP === 'true';
 
     if (!this.useMcp) {
-      logger.info('MCP Bridge disabled (USE_MCP=false)');
+      logger.info('Disabled (USE_MCP=false)');
       return;
     }
 
-    logger.info('MCP Bridge service initialized');
+    logger.info('Service initialized');
   }
 
   /**
@@ -48,7 +43,7 @@ export class MCPBridgeService {
     }
 
     if (this.client) {
-      logger.warn('MCP Bridge already connected');
+      logger.warn('Already connected');
       return;
     }
 
@@ -60,35 +55,35 @@ export class MCPBridgeService {
         socket: {
           reconnectStrategy: (retries) => {
             if (retries > 10) {
-              logger.error('MCP Bridge: Max Redis reconnection attempts reached');
+              logger.error('Max Redis reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
             }
             const delay = Math.min(retries * 100, 3000);
-            logger.warn(`MCP Bridge: Reconnecting to Redis in ${delay}ms (attempt ${retries})`);
+            logger.warn('Reconnecting to Redis', { delay, retries });
             return delay;
           }
         }
       });
 
       this.client.on('error', (err) => {
-        logger.error('MCP Bridge Redis error:', err);
+        logger.error('Redis error', { error: String(err) });
       });
 
       this.client.on('connect', () => {
-        logger.info('MCP Bridge connected to Redis');
+        logger.info('Connected to Redis');
         this.isConnected = true;
       });
 
       this.client.on('disconnect', () => {
-        logger.warn('MCP Bridge disconnected from Redis');
+        logger.warn('Disconnected from Redis');
         this.isConnected = false;
       });
 
       await this.client.connect();
-      logger.info('MCP Bridge Redis connection established');
+      logger.info('Redis connection established');
 
     } catch (error) {
-      logger.error('MCP Bridge failed to connect to Redis:', error);
+      logger.error('Failed to connect to Redis', { error: String(error) });
       throw error;
     }
   }
@@ -105,9 +100,9 @@ export class MCPBridgeService {
       await this.client.quit();
       this.client = null;
       this.isConnected = false;
-      logger.info('MCP Bridge disconnected from Redis');
+      logger.info('Disconnected from Redis');
     } catch (error) {
-      logger.error('MCP Bridge error disconnecting from Redis:', error);
+      logger.error('Error disconnecting from Redis', { error: String(error) });
     }
   }
 
@@ -125,9 +120,9 @@ export class MCPBridgeService {
 
       await this.client.publish(channel, message);
 
-      logger.debug(`MCP Bridge: Published ${event.type} for task ${event.taskId}`);
+      logger.debug('Published event', { type: event.type, taskId: event.taskId });
     } catch (error) {
-      logger.error('MCP Bridge error publishing task update:', error);
+      logger.error('Error publishing task update', { error: String(error) });
     }
   }
 

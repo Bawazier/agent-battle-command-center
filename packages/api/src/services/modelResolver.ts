@@ -9,6 +9,9 @@
 
 import type { ModelOverride } from '@abcc/shared';
 import type { ResourceType } from './resourcePool.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('ModelResolver');
 
 export interface ResolvedModel {
   useClaude: boolean;
@@ -79,7 +82,7 @@ export function resolveModelOverride(
       };
 
     default:
-      console.warn(`[ModelResolver] Unknown model override: ${preferredModel}, falling back to auto`);
+      log.warn('Unknown model override, falling back to auto', { preferredModel });
       return null;
   }
 }

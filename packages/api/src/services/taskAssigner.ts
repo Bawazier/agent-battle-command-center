@@ -11,6 +11,9 @@ import type { PrismaClient } from '@prisma/client';
 import type { Server as SocketIOServer } from 'socket.io';
 import type { Task, Agent, AgentType } from '../types/index.js';
 import { mcpBridge } from './mcpBridge.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('TaskAssigner');
 
 export interface TaskAssignment {
   taskId: string;
@@ -219,7 +222,7 @@ export class TaskAssigner {
   }
 
   private emitTaskUpdate(task: Task): void {
-    console.log(`[TaskAssigner] Emitting task_updated for task ${task.id}, status: ${task.status}`);
+    log.debug('Emitting task_updated', { taskId: task.id, status: task.status });
     this.io.emit('task_updated', { type: 'task_updated', payload: task, timestamp: new Date() });
   }
 

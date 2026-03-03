@@ -2,6 +2,9 @@ import { Router, type Router as RouterType } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../types/index.js';
 import type { ChatService } from '../services/chatService.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('ChatRoute');
 
 export const chatRouter: RouterType = Router();
 
@@ -79,7 +82,7 @@ chatRouter.post('/conversations/:id/messages', asyncHandler(async (req, res) => 
   // Send message (this will stream via WebSocket)
   // Don't await - let it stream in the background
   chatService.sendMessage(req.params.id, data.content).catch((error) => {
-    console.error('Error sending message:', error);
+    log.error('Error sending message', { error: String(error) });
   });
 
   // Return immediately - client will receive updates via WebSocket

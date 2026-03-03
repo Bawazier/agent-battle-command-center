@@ -1,5 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { config } from '../config.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('Auth');
 
 /**
  * API Key Authentication Middleware
@@ -18,7 +21,7 @@ export function requireApiKey(req: Request, res: Response, next: NextFunction): 
 
   // Reject all requests if no API key is configured (security hardening)
   if (!expectedKey) {
-    console.error('SECURITY: API_KEY not configured — rejecting request. Set API_KEY env var.');
+    log.error('SECURITY: API_KEY not configured — rejecting request. Set API_KEY env var.');
     res.status(500).json({
       error: 'Server misconfiguration',
       message: 'API authentication is not configured. Contact administrator.',

@@ -28,14 +28,9 @@ const MODEL_LIMITS: Record<string, RateLimits> = {
 const RATE_LIMIT_BUFFER = parseFloat(process.env.RATE_LIMIT_BUFFER || '0.8');
 // Minimum delay between API calls (milliseconds)
 const MIN_API_DELAY = parseFloat(process.env.MIN_API_DELAY || '0.5') * 1000;
-// Debug logging
-const RATE_LIMIT_DEBUG = process.env.RATE_LIMIT_DEBUG === 'true';
+import { createLogger } from '../logger.js';
 
-function debug(message: string, ...args: unknown[]): void {
-  if (RATE_LIMIT_DEBUG) {
-    console.log(`[RateLimiter] ${message}`, ...args);
-  }
-}
+const log = createLogger('RateLimiter');
 
 class AnthropicRateLimiter {
   private usageByTier: Map<string, UsageEntry[]> = new Map();
@@ -119,9 +114,7 @@ class AnthropicRateLimiter {
       const rpmDelay = oldestEntry + 60000 - Date.now();
       if (rpmDelay > maxDelay) {
         maxDelay = rpmDelay;
-        debug(
-          `RPM limit: ${usage.requests}/${limits.rpm}, need delay: ${rpmDelay}ms`
-        );
+        log.debug('RPM limit reached', { requests: usage.requests, limit: limits.rpm, delayMs: rpmDelay });
       }
     }
 
@@ -139,9 +132,7 @@ class AnthropicRateLimiter {
         const delay = entry.timestamp + 60000 - Date.now();
         if (delay > maxDelay) {
           maxDelay = delay;
-          debug(
-            `Input TPM limit: ${usage.inputTokens}/${limits.inputTpm}, need delay: ${delay}ms`
-          );
+          log.debug('Input TPM limit reached', { inputTokens: usage.inputTokens, limit: limits.inputTpm, delayMs: delay });
         }
         tokensToFree -= entry.inputTokens;
       }
@@ -160,9 +151,7 @@ class AnthropicRateLimiter {
         const delay = entry.timestamp + 60000 - Date.now();
         if (delay > maxDelay) {
           maxDelay = delay;
-          debug(
-            `Output TPM limit: ${usage.outputTokens}/${limits.outputTpm}, need delay: ${delay}ms`
-          );
+          log.debug('Output TPM limit reached', { outputTokens: usage.outputTokens, limit: limits.outputTpm, delayMs: delay });
         }
         tokensToFree -= entry.outputTokens;
       }
@@ -199,9 +188,7 @@ class AnthropicRateLimiter {
     );
 
     if (delay > 0) {
-      console.log(
-        `[RateLimiter] Waiting ${(delay / 1000).toFixed(1)}s for ${tier} capacity (estimated: ${estimatedInputTokens} input tokens)`
-      );
+      log.info('Waiting for capacity', { delaySeconds: (delay / 1000).toFixed(1), tier, estimatedInputTokens });
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
 
@@ -229,9 +216,7 @@ class AnthropicRateLimiter {
     });
 
     this.usageByTier.set(tier, entries);
-    debug(
-      `Recorded usage for ${tier}: ${inputTokens} input, ${outputTokens} output tokens`
-    );
+    log.debug('Recorded usage', { tier, inputTokens, outputTokens });
   }
 
   /**

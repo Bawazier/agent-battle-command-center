@@ -7,6 +7,9 @@
 
 import type { Server as SocketIOServer } from 'socket.io';
 import { prisma } from '../db/client.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('Budget');
 
 export interface BudgetConfig {
   dailyLimitCents: number;  // Budget in cents (e.g., 500 = $5.00)
@@ -158,9 +161,9 @@ class BudgetService {
         });
       }
 
-      console.log(`💰 Budget loaded: Today $${(todayCents/100).toFixed(2)}, All-time $${(totalCents/100).toFixed(2)}`);
+      log.info('💰 Budget loaded', { todayDollars: (todayCents/100).toFixed(2), allTimeDollars: (totalCents/100).toFixed(2) });
     } catch (error) {
-      console.error('Failed to load budget from database:', error);
+      log.error('Failed to load budget from database', { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -242,7 +245,7 @@ class BudgetService {
     // Emit update
     this.emitBudgetUpdate();
 
-    console.log(`💵 Cost recorded: $${(costCents/100).toFixed(4)} (${model}) | Today: $${(existing.spentCents/100).toFixed(2)}/${(this.config.dailyLimitCents/100).toFixed(2)}`);
+    log.info('💵 Cost recorded', { costDollars: (costCents/100).toFixed(4), model, todayDollars: (existing.spentCents/100).toFixed(2), limitDollars: (this.config.dailyLimitCents/100).toFixed(2) });
   }
 
   /**
@@ -293,7 +296,7 @@ class BudgetService {
   setConfig(updates: Partial<BudgetConfig>): void {
     this.config = { ...this.config, ...updates };
     this.emitBudgetUpdate();
-    console.log(`⚙️ Budget config updated:`, this.config);
+    log.info('⚙️ Budget config updated', { config: this.config });
   }
 
   /**
@@ -303,7 +306,7 @@ class BudgetService {
     const today = this.getTodayKey();
     this.dailySpend.delete(today);
     this.emitBudgetUpdate();
-    console.log(`🔄 Daily budget reset`);
+    log.info('🔄 Daily budget reset');
   }
 
   /**

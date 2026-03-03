@@ -2,6 +2,9 @@ import type { PrismaClient } from '@prisma/client';
 import type { Server as SocketIOServer } from 'socket.io';
 import type { TaskQueueService } from './taskQueue.js';
 import { config } from '../config.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('HumanEscalation');
 
 export class HumanEscalationService {
   private checkInterval: NodeJS.Timeout | null = null;
@@ -17,17 +20,17 @@ export class HumanEscalationService {
     if (this.checkInterval) return;
 
     this.checkInterval = setInterval(() => {
-      this.checkTimeouts().catch(console.error);
+      this.checkTimeouts().catch((err) => log.error('Timeout check failed', { error: err instanceof Error ? err.message : String(err) }));
     }, this.checkIntervalMs);
 
-    console.log('Human escalation checker started');
+    log.info('Human escalation checker started');
   }
 
   stopChecker(): void {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
-      console.log('Human escalation checker stopped');
+      log.info('Human escalation checker stopped');
     }
   }
 
@@ -129,7 +132,7 @@ export class HumanEscalationService {
       createdAt: new Date(),
     });
 
-    console.log(`Task ${taskId} escalated to agent ${escalationAgent.id}`);
+    log.info('Task escalated', { taskId, agentId: escalationAgent.id });
     return true;
   }
 

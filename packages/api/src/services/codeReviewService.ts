@@ -22,6 +22,9 @@ import type { PrismaClient, Task } from '@prisma/client';
 import type { Server as SocketIOServer } from 'socket.io';
 import Anthropic from '@anthropic-ai/sdk';
 import { mcpBridge } from './mcpBridge.js';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('CodeReview');
 
 export interface CodeReviewFinding {
   severity: 'critical' | 'high' | 'medium' | 'low';
@@ -77,13 +80,13 @@ export class CodeReviewService {
     if (apiKey) {
       this.anthropic = new Anthropic({ apiKey });
     } else {
-      console.warn('CodeReviewService: ANTHROPIC_API_KEY not set, auto-review disabled');
+      log.warn('ANTHROPIC_API_KEY not set, auto-review disabled');
       this.enabled = false;
     }
 
     // Load counters from Redis if MCP is enabled
     this.loadCountersFromRedis().catch(() => {
-      console.log('CodeReviewService: Using in-memory counters (Redis not available)');
+      log.info('Using in-memory counters (Redis not available)');
     });
   }
 
@@ -168,7 +171,7 @@ export class CodeReviewService {
       });
 
       if (!task) {
-        console.error(`CodeReviewService: Task ${taskId} not found`);
+        log.error('Task not found', { taskId });
         return;
       }
 
@@ -176,7 +179,7 @@ export class CodeReviewService {
       const decision = this.getReviewDecision(task, executedByModel || null);
 
       if (!decision.shouldReview) {
-        console.log(`CodeReviewService: ${decision.reason}`);
+        log.debug('Skipping review', { taskId, reason: decision.reason });
         return;
       }
 
@@ -186,11 +189,11 @@ export class CodeReviewService {
       });
 
       if (existingReview) {
-        console.log(`CodeReviewService: Task ${taskId} already reviewed`);
+        log.debug('Task already reviewed', { taskId });
         return;
       }
 
-      console.log(`CodeReviewService: ${decision.reason}`);
+      log.info('Starting review', { taskId, reason: decision.reason });
 
       // Get execution logs for context
       const executionLogs = await this.prisma.executionLog.findMany({
@@ -203,7 +206,7 @@ export class CodeReviewService {
       const codeContent = this.extractCodeFromLogs(executionLogs, task);
 
       if (!codeContent) {
-        console.log(`CodeReviewService: No code found for task ${taskId}`);
+        log.info('No code found for task', { taskId });
         return;
       }
 
@@ -251,9 +254,9 @@ export class CodeReviewService {
         timestamp: new Date(),
       });
 
-      console.log(`CodeReviewService: Review completed for task ${taskId} - Reviewer: ${decision.reviewer}, Score: ${reviewResult.qualityScore}/10, Passed: ${!reviewFailed}`);
+      log.info('Review completed', { taskId, reviewer: decision.reviewer, score: reviewResult.qualityScore, passed: !reviewFailed });
     } catch (error) {
-      console.error(`CodeReviewService: Error reviewing task ${taskId}:`, error);
+      log.error('Error reviewing task', { taskId, error });
     }
   }
 
@@ -337,7 +340,7 @@ passed=true if score >= 6 and no critical findings.`,
         timestamp: new Date(),
       });
 
-      console.log(`[SentinelReview] Task ${taskId}: score=${result.score}/10, passed=${result.passed}`);
+      log.info('Sentinel review completed', { taskId, score: result.score, passed: result.passed });
 
       return {
         passed: result.passed ?? false,
@@ -346,7 +349,7 @@ passed=true if score >= 6 and no critical findings.`,
         findings: result.findings ?? [],
       };
     } catch (error) {
-      console.error(`[SentinelReview] Error reviewing task ${taskId}:`, error);
+      log.error('Sentinel review error', { taskId, error });
       return null;
     }
   }
@@ -385,7 +388,7 @@ passed=true if score >= 6 and no critical findings.`,
     // Determine escalation tier
     const nextTier = this.getEscalationTier(executedByModel);
 
-    console.log(`CodeReviewService: Review failed for task ${task.id}, escalating from ${executedByModel || 'unknown'} to ${nextTier}`);
+    log.info('Review failed, escalating', { taskId: task.id, from: executedByModel || 'unknown', to: nextTier });
 
     // Update task status
     if (nextTier === 'human') {
@@ -604,7 +607,7 @@ Return ONLY valid JSON matching this schema:
    */
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
-    console.log(`CodeReviewService: Auto-review ${enabled ? 'enabled' : 'disabled'}`);
+    log.info(`Auto-review ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   /**

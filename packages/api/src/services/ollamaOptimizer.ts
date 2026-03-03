@@ -8,6 +8,9 @@
  */
 
 import type { Server as SocketIOServer } from 'socket.io';
+import { createLogger } from '../logger.js';
+
+const log = createLogger('OllamaOptimizer');
 
 // Ollama optimization constants (from stress test findings)
 export const OLLAMA_REST_DELAY_MS = 3000; // 3 seconds rest between Ollama tasks
@@ -58,7 +61,7 @@ export class OllamaOptimizer {
    */
   resetTaskCounts(): void {
     ollamaTaskCounts.clear();
-    console.log('🔄 Ollama task counters reset');
+    log.info('🔄 Ollama task counters reset');
   }
 
   /**
@@ -93,11 +96,7 @@ export class OllamaOptimizer {
     const isExtendedRest = currentCount % OLLAMA_RESET_EVERY_N_TASKS === 0;
     const restMs = isExtendedRest ? OLLAMA_EXTENDED_REST_MS : OLLAMA_REST_DELAY_MS;
 
-    console.log(
-      `🛏️ Ollama task completed (${currentCount} total). Resting ${restMs / 1000}s...${
-        isExtendedRest ? ' (extended rest for context clearing)' : ''
-      }`
-    );
+    log.info('🛏️ Ollama task completed, resting', { taskCount: currentCount, restSeconds: restMs / 1000, isExtendedRest });
 
     // Emit cooling down event for UI
     this.emitCoolingDown(agentId, restMs, isExtendedRest, currentCount);
@@ -106,9 +105,7 @@ export class OllamaOptimizer {
     await sleep(restMs);
 
     if (isExtendedRest) {
-      console.log(
-        `✨ Ollama agent ${agentName || agentId} context clearing complete (${currentCount} tasks since reset)`
-      );
+      log.info('✨ Context clearing complete', { agent: agentName || agentId, taskCount: currentCount });
     }
 
     return currentCount;
@@ -125,11 +122,7 @@ export class OllamaOptimizer {
     const isExtendedRest = currentCount % OLLAMA_RESET_EVERY_N_TASKS === 0;
     const restMs = isExtendedRest ? OLLAMA_EXTENDED_REST_MS : OLLAMA_REST_DELAY_MS;
 
-    console.log(
-      `🛏️ Ollama task failed (${currentCount} total). Resting ${restMs / 1000}s...${
-        isExtendedRest ? ' (extended rest)' : ''
-      }`
-    );
+    log.info('🛏️ Ollama task failed, resting', { taskCount: currentCount, restSeconds: restMs / 1000, isExtendedRest });
 
     this.emitCoolingDown(agentId, restMs, isExtendedRest, currentCount);
 
@@ -176,5 +169,5 @@ export function getOllamaTaskCounts(): Record<string, number> {
 
 export function resetOllamaTaskCounts(): void {
   ollamaTaskCounts.clear();
-  console.log('🔄 Ollama task counters reset');
+  log.info('🔄 Ollama task counters reset');
 }
