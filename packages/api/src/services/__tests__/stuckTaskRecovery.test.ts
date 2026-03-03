@@ -68,8 +68,8 @@ describe('StuckTaskRecoveryService', () => {
       const svc = new StuckTaskRecoveryService(mockPrisma, mockIO);
       const config = svc.getConfig();
 
-      expect(config.taskTimeoutMs).toBe(600000); // 10 minutes
-      expect(config.checkIntervalMs).toBe(60000); // 1 minute
+      expect(config.taskTimeoutMs).toBe(300000); // 5 minutes
+      expect(config.checkIntervalMs).toBe(30000); // 30 seconds
       expect(config.enabled).toBe(true);
       svc.stop();
     });
