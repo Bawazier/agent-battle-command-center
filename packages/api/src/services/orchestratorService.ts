@@ -192,11 +192,24 @@ export class OrchestratorService {
         const taskId = taskIds[i];
         const plan = { ...subtasks[i] };  // Clone so we can augment description
 
-        // ── Fix 4: Pass inter-subtask context ────────────────────────
+        // ── Enforce exact filename (belt-and-suspenders — even if Sonnet forgets) ──
+        plan.description = `IMPORTANT: Write your code to EXACTLY this file: ${plan.file_name}\n` +
+          `Do NOT use a different filename.\n\n` +
+          plan.description;
+
+        // ── Pass inter-subtask context (truncated to save context window) ──
         // Append code from completed subtasks so later files can reference earlier ones
         const prevContext = results
           .filter((r) => r.validation_passed && r.code)
-          .map((r) => `--- ${r.file_name} ---\n${r.code}`)
+          .map((r) => {
+            const code = r.code || '';
+            const lines = code.split('\n');
+            if (lines.length > 60) {
+              return `--- ${r.file_name} (${lines.length} lines, showing first 60) ---\n` +
+                lines.slice(0, 60).join('\n') + '\n... (truncated)';
+            }
+            return `--- ${r.file_name} ---\n${code}`;
+          })
           .join('\n\n');
         if (prevContext) {
           plan.description += `\n\nAlready-written files (reference these, do NOT rewrite):\n${prevContext}`;

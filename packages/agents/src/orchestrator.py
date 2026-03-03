@@ -81,15 +81,62 @@ The validation_command MUST reference the EXACT SAME file as file_name. If file_
   file_name: "tasks/utils.php"
   validation_command: "php -r \\"require 'tasks/utils.php'; assert(add(2,3)===5); echo 'PASS';\\"
 
-**HTML/CSS/static files:**
-  file_name: "tasks/landing.html"
-  validation_command: "python3 -c \\"import os; assert os.path.exists('tasks/landing.html'); print('PASS')\\"
+**HTML (content validation):**
+  file_name: "tasks/store.html"
+  validation_command: "python3 -c \\"c=open('tasks/store.html').read(); assert len(c)>500,'Too short'; assert 'ByteForge' in c,'Missing brand'; assert 'Titan X' in c,'Missing product'; print('PASS')\\"
+  Pick 2-3 MUST-HAVE strings from the requirements for each HTML file's assertions.
+
+**CSS (content validation):**
+  file_name: "tasks/styles.css"
+  validation_command: "python3 -c \\"c=open('tasks/styles.css').read(); assert len(c)>800,'Too short'; assert '@media' in c,'Missing responsive'; assert '#00d4ff' in c or '#0a0a0a' in c,'Missing theme colors'; print('PASS')\\"
+  Pick the primary brand color and require @media for responsive CSS.
+
+**JavaScript (content validation):**
+  file_name: "tasks/app.js"
+  validation_command: "python3 -c \\"c=open('tasks/app.js').read(); assert len(c)>300,'Too short'; assert 'function' in c or '=>' in c,'Missing functions'; print('PASS')\\"
+
+**Static files (existence only — use ONLY for non-code assets like images):**
+  file_name: "tasks/data.json"
+  validation_command: "python3 -c \\"import os; assert os.path.exists('tasks/data.json'); print('PASS')\\""
 
 ### Validation Rules:
 - validation_command MUST print "PASS" on success (exact string)
 - validation_command MUST reference the SAME file as file_name (no mismatches!)
 - For Python modules, the import path derives from file_name: tasks/foo.py → from tasks.foo import ...
-- For static files (HTML, CSS), use os.path.exists() with the exact file_name path
+- For HTML/CSS/JS files, use content validation (assert length + key strings) — NOT os.path.exists()
+- Only use os.path.exists() for non-code assets (images, data files)
+
+## CONTENT PASSTHROUGH RULES (CRITICAL for quality)
+
+The coder agent ONLY sees the subtask description — it does NOT see the original user prompt.
+Therefore you MUST copy ALL specific content into each subtask description:
+
+1. **Text content** — product names, prices, taglines, headings, button labels
+   Copy them VERBATIM into the description. Do NOT summarize.
+2. **Visual specs** — hex colors, font sizes, breakpoints, column counts
+   List every value explicitly.
+3. **Behavioral specs** — what each button does, form validation rules, animation triggers
+   Describe each interaction precisely.
+
+### BAD (vague — coder writes placeholders):
+  "Create an HTML page with a products grid showing 6 gaming PCs with specs and prices"
+
+### GOOD (specific — coder writes real content):
+  "Create an HTML page. The products grid has 6 items:
+   - Titan X: $2,499 — RTX 4080, i7-14700K, 32GB DDR5, 1TB NVMe
+   - Shadow: $1,799 — RTX 4070 Ti, R7 7800X3D, 32GB DDR5, 1TB NVMe
+   - Nova Pro: $3,299 — RTX 4090, i9-14900K, 64GB DDR5, 2TB NVMe
+   (etc.)"
+
+### FILE NAMING ENFORCEMENT
+Always end EVERY subtask description with:
+"CRITICAL: Write your output to EXACTLY this file path: {file_name}"
+
+## WEB PROJECT STRATEGY
+For landing pages and simple websites:
+- Prefer 2 subtasks over 3: combine HTML+CSS into one file (inline <style>) + JS as second file
+- If 3 files needed: HTML subtask gets ALL text content, CSS/JS reference specific IDs/classes
+- HTML is always subtask #1 (others depend on it)
 
 - Estimate complexity 1-10 per subtask (see scale below).
 - Order subtasks by dependency — earlier subtasks should not depend on later ones.
@@ -102,6 +149,13 @@ Complexity scale:
   5-6: Moderate (conditionals, validation, helpers)
   7-8: Complex (algorithms, data structures, multiple functions)
   9:   Extreme (full class: Stack, LRU Cache, etc.)
+
+Complexity guidelines for web projects:
+- Simple HTML (1-2 sections, boilerplate): 3-4
+- Full-page HTML (5+ sections, real content, semantic markup): 7
+- CSS with responsive grid + animations + theme: 7
+- JavaScript with 3+ interactive features: 6-7
+Web projects should generally be rated 7+ so they get 32K context.
 
 JSON schema per subtask:
 {

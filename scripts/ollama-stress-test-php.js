@@ -25,6 +25,8 @@ async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+
+
 // Tasks organized by complexity level — all PHP (standalone <?php files)
 const TASKS = [
   // ═══════════════════════════════════════════════════════════════════════════
@@ -418,7 +420,7 @@ async function waitForAgent(maxWaitMs = 30000) {
       });
       const agent = await response.json();
       if (agent.status === 'idle') return true;
-    } catch (e) {}
+    } catch (e) { }
     await sleep(1000);
   }
   return false;
@@ -452,7 +454,7 @@ async function main() {
   console.log('Goal: Validate Ollama can produce correct PHP code');
   console.log('Tasks: 20 | Complexity range: 1-8 | Model: qwen2.5-coder:7b');
   console.log('Language: PHP 8.2 | Standalone <?php files');
-  console.log(`Rest: ${REST_DELAY_MS/1000}s between tasks | Reset every ${RESET_EVERY_N_TASKS} tasks`);
+  console.log(`Rest: ${REST_DELAY_MS / 1000}s between tasks | Reset every ${RESET_EVERY_N_TASKS} tasks`);
   console.log('\u2550'.repeat(70) + '\n');
 
   await resetSystem();
@@ -553,7 +555,7 @@ async function main() {
           method: 'POST',
           headers: { 'X-API-Key': API_KEY }
         });
-      } catch (resetErr) {}
+      } catch (resetErr) { }
 
       await sleep(2000);
     }
@@ -568,7 +570,7 @@ async function main() {
 
     // Rest delay between tasks
     if (i < TASKS.length - 1) {
-      console.log(`   \u{1f4a4} Resting ${REST_DELAY_MS/1000}s...`);
+      console.log(`   \u{1f4a4} Resting ${REST_DELAY_MS / 1000}s...`);
       await sleep(REST_DELAY_MS);
     }
 
