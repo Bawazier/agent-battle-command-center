@@ -1,13 +1,15 @@
 # Security Policy
 
+## Project Status
+
+ABCC is **stable at v0.11.0** (March 2026). Active development has moved to successor projects — most notably [claudette](https://github.com/mrdushidush/claudette). This repo remains online as a reference implementation and receives security fixes to the latest release, but no new feature work.
+
 ## Supported Versions
 
-Currently supported versions of Agent Battle Command Center:
-
-| Version | Supported          | Status |
-| ------- | ------------------ | ------ |
-| 0.1.x (Alpha) | :white_check_mark: | Active development |
-| < 0.1.0 | :x: | Pre-release, not supported |
+| Version       | Supported          | Status |
+| ------------- | ------------------ | ------ |
+| 0.11.x        | :white_check_mark: | Stable maintenance — security fixes applied to `main` |
+| < 0.11        | :x:                | Not back-ported — upgrade to v0.11.x to receive fixes |
 
 ## Reporting a Vulnerability
 
@@ -221,11 +223,31 @@ If you're deploying Agent Battle Command Center, **follow these practices:**
    - Test rate limiting triggers correctly
    - Ensure auth rejects invalid API keys
 
+## Dependency Scanner Advisories
+
+GitHub's Dependabot flags advisories in both runtime and build-time dependencies, including transitives of dev tooling (Jest, Vitest, ESLint, Storybook, etc.). Triage policy for this repo in its stable-maintenance phase:
+
+- **Runtime CRITICAL / HIGH** — fixed promptly via direct bumps or `pnpm.overrides`.
+- **Runtime MEDIUM / LOW** — fixed when a dependency naturally bumps; not chased individually.
+- **Build-time / dev-only transitives** — acknowledged but not chased. They don't affect users of the deployed app, and rewriting the dev tree is out of scope for maintenance mode. The public Dependabot count reflects this backlog.
+
+If you believe a flagged alert actually reaches runtime code (not dev tooling), please report it as a vulnerability via the private advisory flow above — that reframes it as a supported-scope issue and gets fixed.
+
+For the active successor project with a fresher, continuously-maintained dep tree, see [claudette](https://github.com/mrdushidush/claudette).
+
 ## Known Vulnerabilities
 
-### Current (v0.1.x)
+### Current (v0.11.x, as of April 2026)
 
-None reported as of 2026-02-06.
+Resolved via `pnpm.overrides` in root `package.json`:
+
+- **handlebars** (CRITICAL GHSA — JS injection via AST type confusion) — forced to `>=4.7.9` in the lockfile.
+- **esbuild**, **minimatch** — forced to safe versions (prior polish passes).
+
+Residual transitive alerts remaining in the Dependabot backlog, per the triage policy above:
+
+- `lodash`, `undici`, `picomatch`, `flatted`, `socket.io-parser`, `brace-expansion` — transitives of dev/build tooling (Jest, Vitest, Storybook variants). Not reachable from runtime code paths.
+- `uuid` in `packages/api/package.json` — declared as a direct dep but unused in source (legacy artifact). Slated for removal; not a runtime concern.
 
 ### Historical
 
@@ -287,5 +309,5 @@ We thank the following security researchers who have responsibly disclosed vulne
 
 This security policy is subject to change without notice. By using Agent Battle Command Center, you agree to follow responsible disclosure practices.
 
-**Last Updated**: 2026-02-06
-**Policy Version**: 1.0
+**Last Updated**: 2026-04-23
+**Policy Version**: 1.1 (maintenance-mode triage + stable-status framing)
