@@ -2,7 +2,7 @@ import os
 import tempfile
 import subprocess
 from pathlib import Path
-from crewai_tools import BaseTool
+from crewai.tools import BaseTool
 from src.monitoring import ActionHistory, ActionLoopDetected
 
 

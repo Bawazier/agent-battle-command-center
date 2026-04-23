@@ -13,7 +13,7 @@ import logging
 import os
 from typing import Optional
 
-from crewai_tools import tool
+from crewai.tools import tool
 import httpx
 
 logger = logging.getLogger(__name__)

@@ -12,7 +12,7 @@ These tools are exclusive to the CTO agent for:
 import json
 import requests
 from typing import Dict, Any, List
-from crewai_tools import tool
+from crewai.tools import tool
 
 from src.config import settings
 

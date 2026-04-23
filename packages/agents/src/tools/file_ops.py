@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from crewai_tools import BaseTool
+from crewai.tools import BaseTool
 from src.config import settings
 from src.monitoring import ActionHistory, ActionLoopDetected
 

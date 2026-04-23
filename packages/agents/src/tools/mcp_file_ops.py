@@ -11,7 +11,7 @@ import os
 from typing import Optional
 
 import httpx
-from crewai_tools import tool
+from crewai.tools import tool
 
 logger = logging.getLogger(__name__)
 

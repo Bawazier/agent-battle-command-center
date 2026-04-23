@@ -1,7 +1,7 @@
 import subprocess
 import shlex
 import re
-from crewai_tools import BaseTool
+from crewai.tools import BaseTool
 from src.config import settings
 from src.monitoring import ActionHistory, ActionLoopDetected
 
