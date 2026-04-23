@@ -1,6 +1,6 @@
 {
   "name": "agent-battle-command-center",
-  "version": "0.2.0-beta",
+  "version": "0.11.0",
   "private": true,
   "description": "Strategy-game inspired UI for managing AI agents",
   "scripts": {

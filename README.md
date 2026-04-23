@@ -6,7 +6,7 @@
 
 An RTS-inspired control center for orchestrating AI coding agents with intelligent tiered routing. Watch your AI agents work in real-time with a retro strategy game-style interface.
 
-[![Strong MVP](https://img.shields.io/badge/status-Strong%20MVP%20(8.5%2F10)-brightgreen)](./MVP_ASSESSMENT.md)
+[![Stable](https://img.shields.io/badge/status-stable%20v0.11.0-brightgreen)](./CHANGELOG.md)
 [![Docker Hub](https://img.shields.io/badge/Docker%20Hub-dushidush-blue?logo=docker)](https://hub.docker.com/u/dushidush)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)

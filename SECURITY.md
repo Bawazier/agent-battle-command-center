@@ -51,7 +51,7 @@ Please provide:
 
 ## Security Features
 
-### Current Implementation (MVP - v0.1.x)
+### Current Implementation (v0.11.x stable maintenance)
 
 #### ✅ Implemented
 
@@ -247,7 +247,10 @@ Resolved via `pnpm.overrides` in root `package.json`:
 Residual transitive alerts remaining in the Dependabot backlog, per the triage policy above:
 
 - `lodash`, `undici`, `picomatch`, `flatted`, `socket.io-parser`, `brace-expansion` — transitives of dev/build tooling (Jest, Vitest, Storybook variants). Not reachable from runtime code paths.
-- `uuid` in `packages/api/package.json` — declared as a direct dep but unused in source (legacy artifact). Slated for removal; not a runtime concern.
+
+Resolved in the v0.11.x maintenance pass (April 2026):
+
+- `uuid` — removed entirely from `packages/api/package.json`; was a declared direct dep but never imported in source (the only "uuid" references were Zod's `z.string().uuid()` validator, which has no uuid-package dependency). Closed 2 Dependabot alerts.
 
 ### Historical
 

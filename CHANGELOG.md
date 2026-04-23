@@ -4,6 +4,59 @@ All notable changes to Agent Battle Command Center.
 
 ---
 
+## [v0.11.x maintenance pass] - 2026-04-23
+
+Portfolio-hygiene sweep as the repo settled into stable-maintenance mode. No feature work — documentation, security, and housekeeping only.
+
+### Security
+
+- **Handlebars CRITICAL (GHSA AST-type-confusion JS injection)** resolved via `pnpm.overrides` forcing `handlebars >=4.7.9` at root. Lockfile cascade also closed transitive alerts on flatted + picomatch that the override re-resolved.
+- **12 Dependabot PRs merged** — 4 security (rustls-webpki #160, python-dotenv #158, rand #159, git2 #133) and 8 routine group-bumps. Zero open dependabot PRs at pass end.
+- **Unused `uuid` + `@types/uuid` removed** from `packages/api/package.json`. The dep was declared but never imported — all "uuid" source references were Zod's `z.string().uuid()` validator. Closed 2 Dependabot alerts.
+- **Dependabot alerts: 31 → 10** (68% reduction, zero critical). Remaining 10 are dev/build-tool transitives (lodash, undici, picomatch, flatted, socket.io-parser, brace-expansion) covered explicitly by the new SECURITY.md triage policy.
+
+### Documentation
+
+- **README stable-status banner** added at the top reframing the repo as "stable at v0.11.0, active development moved to [claudette](https://github.com/mrdushidush/claudette)". Converts the dormant-repo signal into a coherent graceful-handoff.
+- **SECURITY.md refreshed.** Version-supported table now reflects v0.11.x stable maintenance (was v0.1.x alpha framing from Feb 2026). New "Dependency Scanner Advisories" section documents the maintenance-mode triage policy: runtime CRITICAL/HIGH are fixed via direct bumps or overrides; dev-only transitives are acknowledged but not chased.
+- Package manifests (`package.json`, `packages/api/package.json`, `packages/ui/package.json`) version numbers aligned to the v0.11.0 banner (were stranded at `0.2.0-beta`).
+- Status badge updated from "Strong MVP (8.5/10)" to "stable v0.11.0" to match the banner tone.
+
+### Housekeeping
+
+- **Orphan scaffold commit reverted** (`b1cf8f2` "BattleClaw v2 — Pre-Day 0 scaffold"). Removed the dangling Rust workspace + Python agent copies that had been merged onto main before the real v2 effort extracted to a separate sibling repo. Keeps history linear and the tree clean.
+
+---
+
+## [v0.11.0] - 2026-03 (CTO decomposition quality overhaul)
+
+**Commit:** `8fa7e42`
+
+- Content passthrough in CTO decomposition pipeline (preserves exact-spec details from user prompt into subtask specs instead of paraphrasing).
+- Content-aware validation — validator now checks produced output against original prompt content requirements, not just structural correctness.
+- Web project optimization — specialized decomposition path for landing-page / SPA missions.
+
+---
+
+## [v0.10.0] - 2026-03 (CTO + QA overhaul)
+
+**Commit:** `0970bcd`
+
+- Sentinel-9 persona added — senior QA voice in the critique pipeline.
+- Mission hardening — retry/fallback logic for partial CTO failures.
+- Battle Claw upgrade — improved verifier sandboxing + test parsing.
+
+---
+
+## [v0.9.0] - 2026-02 (Mac Studio M4 Max integration)
+
+**Commit:** `255a04b`
+
+- Multi-model routing extended for Mac Studio local inference — detects host and routes complexity-appropriate tasks accordingly.
+- Standalone deployment mode — run without the full Docker compose stack when API + Ollama is enough.
+
+---
+
 ## [v0.8.3] - 2026-03-01
 
 ### CTO Mission Orchestrator Real-World Validation + Cost Analysis
