@@ -10,7 +10,7 @@ An RTS-inspired control center for orchestrating AI coding agents with intellige
 [![Docker Hub](https://img.shields.io/badge/Docker%20Hub-dushidush-blue?logo=docker)](https://hub.docker.com/u/dushidush)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
-[![Tests](https://img.shields.io/badge/tests-27%20test%20files-success)](./packages/api/src/__tests__)
+[![Tests](https://img.shields.io/badge/tests-23%20test%20files-success)](./packages/api/src/__tests__)
 [![Ollama Tested](https://img.shields.io/badge/Ollama%20C1--C9-90%25%20pass%20(16K%20ctx)-success)](./scripts/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -74,10 +74,6 @@ An RTS-inspired control center for orchestrating AI coding agents with intellige
 ### Dashboard & Analytics
 ![Dashboard](docs/screenshots/dashboard.png)
 *Success rates by complexity, cost breakdown by model tier, agent comparison charts, and budget tracking.*
-
-### Cost Tracking
-![Cost Dashboard](docs/screenshots/cost-dashboard.png)
-*Real-time cost monitoring with daily budget limits, model tier breakdown, and token burn rate visualization.*
 
 ---
 
