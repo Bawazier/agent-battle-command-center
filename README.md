@@ -1,5 +1,7 @@
 # 🎮 Agent Battle Command Center
 
+> **Status: stable at v0.11.0 (March 2026).** ABCC is the godfather of a family of AI coding-agent experiments I've been building since January 2026. Active development has since moved to newer projects — most notably **[claudette](https://github.com/mrdushidush/claudette)**, a local-first personal-assistant descendant of the same lineage (messaging-app access + voice + persistent scheduler, also on [crates.io](https://crates.io/crates/claudette)). This repo remains online as a reference implementation of the architecture (Campbell complexity routing, tiered Ollama → Claude fallback, RTS-style TUI, Bark military voice lines). Issues and PRs still welcome; don't expect rapid feature work here — that's happening in the successor projects.
+
 > **Run 90% of coding tasks for FREE on a $300 GPU — including LRU caches and RPN calculators — with Claude handling the rest at ~$0.002/task average.**
 
 An RTS-inspired control center for orchestrating AI coding agents with intelligent tiered routing. Watch your AI agents work in real-time with a retro strategy game-style interface.
