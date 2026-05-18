@@ -57,7 +57,7 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-hidden focus:border-hud-blue"
+              className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-hud-blue"
               placeholder="Task title..."
               required
             />
@@ -69,7 +69,7 @@ export function EditTaskModal({ task, onClose }: EditTaskModalProps) {
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-hidden focus:border-hud-blue h-24 resize-none"
+              className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-hud-blue h-24 resize-none"
               placeholder="Task description..."
             />
           </div>

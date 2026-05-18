@@ -1,8 +1,16 @@
 import type { Server as SocketIOServer, Socket } from 'socket.io';
+import { timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('WebSocket');
+
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 
 // Track connections per IP to prevent DoS
 const connectionsPerIP = new Map<string, number>();
@@ -18,8 +26,10 @@ export function setupWebSocket(io: SocketIOServer): void {
       return next();
     }
 
-    const token = socket.handshake.auth.token || socket.handshake.headers['x-api-key'];
-    if (!token || token !== expectedKey) {
+    const rawToken = socket.handshake.auth.token || socket.handshake.headers['x-api-key'];
+    // Headers may be string[]; auth.token is any. Only accept scalar string.
+    const token = typeof rawToken === 'string' ? rawToken : '';
+    if (!token || !safeEqual(token, expectedKey)) {
       return next(new Error('Authentication failed: invalid or missing API key'));
     }
 

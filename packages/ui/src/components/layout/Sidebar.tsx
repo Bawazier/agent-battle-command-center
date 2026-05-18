@@ -4,9 +4,6 @@ import { AgentCard } from '../shared/AgentCard';
 import { useUIStore } from '../../store/uiState';
 import { agentsApi } from '../../api/client';
 
-// Agents to hide from UI (unused/test agents)
-const HIDDEN_AGENTS: string[] = [];
-
 export function Sidebar() {
   const { agents, sidebarCollapsed, toggleSidebar, alerts } = useUIStore();
   const unacknowledgedAlerts = alerts.filter(a => a && a.acknowledged === false).length;
@@ -19,11 +16,9 @@ export function Sidebar() {
       .catch(() => setGrokEnabled(false));
   }, []);
 
-  // Filter out hidden agents and group by type
-  const visibleAgents = agents.filter(a => !HIDDEN_AGENTS.includes(a.id));
-  const coderAgents = visibleAgents.filter(a => a.type === 'coder');
-  const qaAgents = visibleAgents.filter(a => a.type === 'qa');
-  const ctoAgents = visibleAgents.filter(a => a.type === 'cto');
+  const coderAgents = agents.filter(a => a.type === 'coder');
+  const qaAgents = agents.filter(a => a.type === 'qa');
+  const ctoAgents = agents.filter(a => a.type === 'cto');
 
   if (sidebarCollapsed) {
     return (
@@ -37,7 +32,7 @@ export function Sidebar() {
 
         {/* Collapsed agent indicators */}
         <div className="flex-1 flex flex-col gap-2">
-          {visibleAgents.map(agent => (
+          {agents.map(agent => (
             <div
               key={agent.id}
               className={`w-8 h-8 rounded flex items-center justify-center ${

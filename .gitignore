@@ -90,3 +90,8 @@ backups/
 
 # Windows artifacts
 nul
+
+# Repo-root scratch / SEO verification artifacts
+tasks_temp.json
+BingSiteAuth.xml
+google*.html

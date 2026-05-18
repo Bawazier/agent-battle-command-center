@@ -45,7 +45,7 @@ export function ChatInput({ onSend, disabled, placeholder }: ChatInputProps) {
         placeholder={placeholder || 'Type a message...'}
         disabled={disabled}
         rows={1}
-        className="flex-1 bg-command-bg border border-command-border rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 resize-none focus:outline-hidden focus:border-hud-green/50 disabled:opacity-50"
+        className="flex-1 bg-command-bg border border-command-border rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-500 resize-none focus:outline-none focus:border-hud-green/50 disabled:opacity-50"
       />
       <button
         onClick={handleSend}

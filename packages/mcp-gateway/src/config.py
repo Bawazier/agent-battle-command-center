@@ -1,7 +1,18 @@
 """Configuration management for MCP Gateway."""
 
 import os
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Sentinel values treated as "unset" to fail-closed on misconfigured deploys.
+# Includes the historical literal default and the .env.example placeholder so
+# a copy-paste without edit still raises at startup.
+_INSECURE_JWT_DEFAULTS = {
+    "",
+    "change-me-in-production",
+    "CHANGE_ME_generate_with_openssl_rand_hex_32",
+}
+_MIN_JWT_SECRET_LEN = 32
 
 
 class Settings(BaseSettings):
@@ -47,9 +58,25 @@ class Settings(BaseSettings):
     mcp_server_name: str = "agent-collaboration-gateway"
 
     # Authentication
-    jwt_secret: str = os.getenv("JWT_SECRET", "change-me-in-production")
+    jwt_secret: str = os.getenv("JWT_SECRET", "")
     jwt_algorithm: str = "HS256"
     jwt_expiration: int = 3600  # 1 hour
+
+    @field_validator("jwt_secret")
+    @classmethod
+    def _require_strong_jwt_secret(cls, v: str) -> str:
+        if v in _INSECURE_JWT_DEFAULTS:
+            raise ValueError(
+                "JWT_SECRET is unset or uses the insecure default. "
+                "MCP Gateway refuses to start. Generate one with "
+                "`openssl rand -hex 32` and set it in your .env."
+            )
+        if len(v) < _MIN_JWT_SECRET_LEN:
+            raise ValueError(
+                f"JWT_SECRET must be at least {_MIN_JWT_SECRET_LEN} chars "
+                f"(got {len(v)}). Generate with `openssl rand -hex 32`."
+            )
+        return v
 
     # Monitoring
     enable_metrics: bool = True

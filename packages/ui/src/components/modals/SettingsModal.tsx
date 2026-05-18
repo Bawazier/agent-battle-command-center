@@ -224,7 +224,7 @@ export function SettingsModal() {
                     onChange={(e) => setBudgetInput(e.target.value)}
                     onBlur={handleBudgetLimitChange}
                     onKeyDown={(e) => e.key === 'Enter' && handleBudgetLimitChange()}
-                    className="w-32 px-4 py-2 bg-command-bg border border-command-border rounded-lg text-xl font-mono focus:outline-hidden focus:border-hud-green"
+                    className="w-32 px-4 py-2 bg-command-bg border border-command-border rounded-lg text-xl font-mono focus:outline-none focus:border-hud-green"
                   />
                   <button
                     onClick={handleBudgetLimitChange}

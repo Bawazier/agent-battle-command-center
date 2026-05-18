@@ -649,7 +649,7 @@ New variables added to `.env.example`:
 USE_MCP=false                           # Enable MCP tools (default: disabled)
 MCP_GATEWAY_URL=http://localhost:8001   # MCP server URL
 REDIS_URL=redis://localhost:6379/0      # Redis connection
-JWT_SECRET=change-me-in-production      # MCP client auth
+JWT_SECRET=$(openssl rand -hex 32)      # MCP client auth (must be 32+ chars; gateway refuses to start otherwise)
 
 # Sync Configuration
 SYNC_FROM_POSTGRES_INTERVAL=1.0         # Pull every 1s

@@ -30,8 +30,7 @@ function App() {
     return () => {
       disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+  }, [connect, disconnect, fetchAgents, fetchTasks]);
 
   // Sync audio settings with audio manager
   useEffect(() => {

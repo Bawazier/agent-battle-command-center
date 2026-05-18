@@ -59,7 +59,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-hidden focus:border-hud-blue"
+              className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-hud-blue"
               placeholder="Task title..."
               required
             />
@@ -71,7 +71,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-hidden focus:border-hud-blue h-24 resize-none"
+              className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-hud-blue h-24 resize-none"
               placeholder="Task description..."
             />
           </div>
@@ -83,7 +83,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
               <select
                 value={taskType}
                 onChange={(e) => setTaskType(e.target.value as TaskType)}
-                className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-hidden focus:border-hud-blue"
+                className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-hud-blue"
               >
                 <option value="code">Code</option>
                 <option value="test">Test</option>
@@ -98,7 +98,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
               <select
                 value={requiredAgent}
                 onChange={(e) => setRequiredAgent(e.target.value as AgentType | '')}
-                className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-hidden focus:border-hud-blue"
+                className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-hud-blue"
               >
                 <option value="">Any</option>
                 <option value="coder">Coder</option>
@@ -144,7 +144,7 @@ export function CreateTaskModal({ onClose }: CreateTaskModalProps) {
                 <textarea
                   value={validationCommand}
                   onChange={(e) => setValidationCommand(e.target.value)}
-                  className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm font-mono focus:outline-hidden focus:border-hud-blue h-20 resize-none"
+                  className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm font-mono focus:outline-none focus:border-hud-blue h-20 resize-none"
                   placeholder='python -c "from tasks.example import fn; assert fn(1) == 2"'
                 />
                 <p className="text-[10px] text-gray-600 mt-1">

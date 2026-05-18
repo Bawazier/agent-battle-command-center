@@ -90,7 +90,7 @@ packages/mcp-gateway/
 USE_MCP=false                           # Feature flag (gradual rollout)
 MCP_GATEWAY_URL=http://localhost:8001   # MCP server URL
 REDIS_URL=redis://localhost:6379/0      # Redis connection string
-JWT_SECRET=change-me-in-production      # MCP client auth secret
+JWT_SECRET=$(openssl rand -hex 32)      # MCP client auth secret (must be 32+ chars; gateway refuses to start otherwise)
 
 # MCP Sync Configuration
 SYNC_FROM_POSTGRES_INTERVAL=1.0         # Pull from PostgreSQL every 1s

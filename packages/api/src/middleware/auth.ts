@@ -1,8 +1,16 @@
 import { Request, Response, NextFunction } from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
 import { createLogger } from '../logger.js';
 
 const log = createLogger('Auth');
+
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a, 'utf8');
+  const bb = Buffer.from(b, 'utf8');
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 
 /**
  * API Key Authentication Middleware
@@ -37,7 +45,7 @@ export function requireApiKey(req: Request, res: Response, next: NextFunction): 
     return;
   }
 
-  if (apiKey !== expectedKey) {
+  if (!safeEqual(apiKey, expectedKey)) {
     res.status(403).json({
       error: 'Forbidden',
       message: 'Invalid API key',
@@ -56,7 +64,7 @@ export function optionalApiKey(req: Request, res: Response, next: NextFunction):
   const apiKey = req.headers['x-api-key'] as string | undefined;
   const expectedKey = config.auth.apiKey;
 
-  if (expectedKey && apiKey && apiKey === expectedKey) {
+  if (expectedKey && apiKey && safeEqual(apiKey, expectedKey)) {
     // Valid API key provided
     (req as any).authenticated = true;
   } else {

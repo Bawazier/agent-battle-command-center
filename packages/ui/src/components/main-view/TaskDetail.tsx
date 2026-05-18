@@ -245,7 +245,7 @@ export function TaskDetail({ task }: TaskDetailProps) {
             <textarea
               value={humanInput}
               onChange={(e) => setHumanInput(e.target.value)}
-              className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-hidden focus:border-hud-blue h-24 resize-none mb-2"
+              className="w-full bg-command-bg border border-command-border rounded-sm px-3 py-2 text-sm focus:outline-none focus:border-hud-blue h-24 resize-none mb-2"
               placeholder="Enter your input or instructions..."
             />
             <div className="flex gap-2">
