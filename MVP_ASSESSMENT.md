@@ -956,7 +956,7 @@ These don't block publishing but should be fixed for production quality:
 **Decomposition (Sonnet):**
 - Parsed 8 requirements from prompt
 - Created 3 subtasks (HTML, CSS, JavaScript)
-- Complexity assignment: C2, C4, C5 (all routed to local Ollama 16K — C1-C6 tier)
+- Complexity assignment: C2, C4, C5 (all routed to local Ollama 16K — C1-C6 tier) *([model names normalized to current router behavior; the original run used `:8k` which was the C1-C6 default at the time and has since been deprecated — see CLAUDE.md § Ollama Configuration])*
 
 **Execution:**
 ```
