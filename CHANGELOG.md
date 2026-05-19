@@ -4,6 +4,50 @@ All notable changes to Agent Battle Command Center.
 
 ---
 
+## [v0.13.0] - 2026-05-19 (roast-response sprint, Theme 3)
+
+Response to `ROAST_REPORT.md` continues. Theme 3 is the security-headers + docs-honesty pass. Five commits land surgical fixes; Theme 4 (tests + CI honesty) follows.
+
+### Security
+
+- **Helmet middleware** mounted in `packages/api/src/index.ts` as the first middleware, before cors and rate-limiting. Adds CSP (`default-src 'none'`, `frameAncestors 'none'`, `baseUri 'none'`, `formAction 'none'`), X-Frame-Options=DENY, X-Content-Type-Options=nosniff, Referrer-Policy=no-referrer, and X-DNS-Prefetch-Control=off to every response. API returns JSON only, so strict CSP is inert in normal use but locks out any future accidental HTML leak.
+- **HSTS gated** behind `NODE_ENV=production && TRUST_PROXY=true` (180 days, no subdomains, no preload). Local dev runs plain HTTP so HSTS stays off by default — operators must explicitly opt in once they've fronted the API with TLS. `crossOriginResourcePolicy` set to `'cross-origin'` so the dev UI on `:5173` can read JSON from the API on `:3001`; helmet's stricter `same-origin` default would have broken cross-origin dev fetches.
+- **Removed `NODE_ENV=test` rate-limit bypass** (`packages/api/src/middleware/rateLimiter.ts`). All three limiters (`standardRateLimiter`, `strictRateLimiter`, `permissiveRateLimiter`) previously called `skip: () => config.env === 'test'`, which meant production rate-limit behavior was never exercised and anyone setting `NODE_ENV=test` on a deployed instance got unlimited access. Zero tests depend on the bypass (no `supertest`, no `request(app)`, no `app.listen` in test code) — 211/211 tests still pass.
+- Retired `SECURITY.md` "Planned for v0.2.x" Helmet checkbox; marked as shipped.
+
+### Documentation
+
+- **Reconciled model-name and success-rate claims** across `README.md`, `CLAUDE.md`, `MVP_ASSESSMENT.md`, and `CHANGELOG.md`. The roast-report identified 4 docs disagreeing on both the default Ollama model and the headline pass rate. An audit confirmed the "90% (36/40)" that propagated through README/MVP_ASSESSMENT/CHANGELOG was a rounding artifact unsupported by the actual benchmark log — canonical numbers from `scripts/QWEN25_CODER_7B_ULTIMATE_REPORT.md` are **88% raw (35/40) / 98% with auto-retry (39/40)**.
+- **Canonical model phrasing** now consistent everywhere: base `qwen2.5-coder:7b` + routed `:16k` (C1-C6) / `:32k` (C7-C9) context variants. `:8k` deprecated (Mar 2026) — no live code path in `taskRouter.ts` emits it; explicitly marked as such in `CLAUDE.md`.
+- Removed the unverified "11 minutes / 4.5x faster" benchmark runtime claim from README — the canonical report shows 36m 14s end-to-end and time-per-task (12s avg) is the more honest metric.
+- README's `OLLAMA_MODEL` example corrected from `qwen2.5-coder:32k` to `qwen2.5-coder:7b` to match `.env.example`. Quick Start verification commands updated to show the actual `ollama list` output (`:7b` + `:16k` + `:32k`).
+- README's "Proven Metrics" table now splits raw vs retry rows and links to the canonical benchmark report.
+- `CLAUDE.md` line 33-36 vs line 40 self-contradiction resolved: `:8k` is now consistently described as deprecated throughout.
+- `MVP_ASSESSMENT.md` mission example (Mar 1, 2026 coffee-shop landing page) had its `qwen2.5-coder:8k` references normalized to `:16k` (current router behavior), with an inline footnote acknowledging the normalization vs the historical run.
+
+### Cleanup
+
+- `git rm docs/MVP_ASSESSMENT.md` — duplicate of root `MVP_ASSESSMENT.md`. Content frozen at 2026-02-06 (Phase C, "95% feature completeness"); zero inbound references. CLAUDE.md:5 declares the root path canonical.
+- `git rm NEXT_SESSION_PLAN.md` — 3 months stale (last touched 2026-02-20). Every actionable item in it is either shipped (auto-retry pipeline, Phase 4) or superseded (real-projects → Phase 5b, JS/Go benchmarks done). Better captured as fresh issues than archived in a stale plan.
+- `PROMOTION_CONTENT.md` confirmed correctly `.gitignore`d and never tracked — no action needed.
+
+### Out of scope (deferred)
+
+- `docker-compose.yml:51,53,128` still defaults the Ollama healthcheck to `qwen2.5-coder:8k` while `docker-compose.hub.yml:55,108` uses `:7b`. Entrypoint creates all variants from `:7b` either way so this is cosmetic, but the disagreement deserves its own commit — flag for Theme 4.
+- `docs/TEST_RUNNER_GUIDE.md` references `qwen3:8b` and a deleted `scripts/run-manual-test.js`. Stale-doc cleanup, not a claim-reconciliation issue — defer.
+- `app.set('trust proxy', ...)` is absent app-wide. Once an operator sets `TRUST_PROXY=true` for HSTS, the rate limiter still keys by socket IP (sees `127.0.0.1` behind any reverse proxy). Separate ticket.
+- **Theme 3.3 (auth model)** — shared API key baked into Vite bundle. Decision deferred to its own sprint with a design doc per user direction.
+
+### Verification
+
+- 5 commits: `b290304` (3.1 helmet), `85972bd` (3.2 rate-limit bypass), `b41ced3` (3.4 doc deletes), `c8685fa` (3.3 docs reconciliation), `530c499` (3.3 nit-fix from code review).
+- Each major commit independently code-reviewed by a second-pass agent before release. Reviewer verdict: SHIP, no blockers.
+- `corepack pnpm --filter @abcc/api lint` (tsc --noEmit): clean.
+- `corepack pnpm --filter @abcc/api test`: 211 passed, 43 skipped, 0 failed.
+- `helmet@7.2.0` resolved cleanly with zero new transitive deps.
+
+---
+
 ## [v0.12.0] - 2026-05-19 (roast-response sprint, Themes 1-2)
 
 Response to `ROAST_REPORT.md`. Stop-the-bleeding fixes + performance overhaul. Four commits land the structural changes; Themes 3 (security headers + docs reconciliation) and 4 (tests + CI honesty) follow.
