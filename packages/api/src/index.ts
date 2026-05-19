@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { config } from './config.js';
@@ -54,6 +55,25 @@ const io = new SocketIOServer(httpServer, {
   pingTimeout: 20000,
   pingInterval: 25000,
 });
+
+// Security headers. API returns JSON only — strict CSP locks out anything from ever
+// loading resources off an API response. HSTS is gated behind explicit TRUST_PROXY+prod
+// because local dev runs plain HTTP and pinning localhost to HTTPS for 6mo would brick it.
+const hstsEnabled = config.env === 'production' && process.env.TRUST_PROXY === 'true';
+app.use(helmet({
+  contentSecurityPolicy: {
+    useDefaults: false,
+    directives: {
+      defaultSrc: ["'none'"],
+      frameAncestors: ["'none'"],
+      baseUri: ["'none'"],
+      formAction: ["'none'"],
+    },
+  },
+  hsts: hstsEnabled ? { maxAge: 15552000, includeSubDomains: false, preload: false } : false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginEmbedderPolicy: false,
+}));
 
 // Middleware with CORS restrictions
 app.use(cors({

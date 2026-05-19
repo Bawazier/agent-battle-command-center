@@ -85,7 +85,7 @@ Please provide:
 - [ ] CSP headers for UI
 - [ ] Audit logging for security events
 - [ ] Stricter CORS policies with origin validation
-- [ ] Helmet.js for Express security headers
+- [x] Helmet.js for Express security headers (shipped v0.13.0)
 
 ### Planned for v1.0
 
