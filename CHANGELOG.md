@@ -4,6 +4,60 @@ All notable changes to Agent Battle Command Center.
 
 ---
 
+## [v0.12.0] - 2026-05-19 (roast-response sprint, Themes 1-2)
+
+Response to `ROAST_REPORT.md`. Stop-the-bleeding fixes + performance overhaul. Four commits land the structural changes; Themes 3 (security headers + docs reconciliation) and 4 (tests + CI honesty) follow.
+
+### Breaking
+
+- `GET /api/tasks` response envelope changed from `Task[]` to `{ items, total, limit, offset }`. Accepts `?limit=&offset=` (default 100, max 200).
+- `GET /api/execution-logs/task/:taskId` response envelope changed from `ExecutionLog[]` to `{ items, nextCursor }` (cursor-paginated by `step`). Accepts `?afterStep=&limit=`.
+- UI hooks and external callers (`scripts/verify-system.js`, `packages/agents/src/tools/cto_tools.py:query_logs`, `packages/agents/src/schemas/output.py:_parse_from_execution_logs`) updated. Third-party consumers must read `.items`.
+
+### Migrations
+
+- `20260518_execution_log_composite_indexes` — drops `[taskId]` / `[agentId]` single-column indexes, adds `[taskId, step]` and `[agentId, timestamp]` composites. `DROP INDEX IF EXISTS` for environments bootstrapped via `prisma db push` without a baseline migration.
+
+### Security
+
+- API key comparison switched to `crypto.timingSafeEqual` with length guard in `auth.ts` (both `requireApiKey` and `optionalApiKey`) and `websocket/handler.ts`. WebSocket also now coerces multi-value `x-api-key` headers to scalar string.
+- MCP Gateway `JWT_SECRET` fail-closed via pydantic `field_validator`: refuses to start if unset, equals the legacy default `"change-me-in-production"`, equals the `.env.example` placeholder, or under 32 chars.
+- Docs (`MCP_INTEGRATION_STATUS.md`, `docs/MVP_ASSESSMENT.md`) updated — example `JWT_SECRET=change-me-in-production` would now trip the validator; replaced with `$(openssl rand -hex 32)`.
+
+### Performance
+
+- **Killed O(n²) cost aggregation.** `POST /api/execution-logs` previously did `prisma.executionLog.findMany()` (no where/take) and reduced the entire table on every insert. New `costAggregator` singleton hydrates once via one `groupBy` and accumulates O(1) per log. `addLog` no-ops until hydrated to avoid emitting a partial snapshot during the bootup race window.
+- **Replaced 10s log polling with WebSocket fan-out.** `TokenBurnLog` + `ToolLog` previously HTTP-polled `/api/execution-logs` every 10s (was 2s — caused OOM). Now: new `execution_log_created` socket event fires from the POST handler; bounded 500-entry buffer in Zustand; rehydrates from REST on `socket.on('connect')`. The "polled my own frontend into OOM, fix was to poll less" pattern is gone.
+- **Pagination.** Both list endpoints (above) now bounded.
+
+### Frontend bundle
+
+- `react-syntax-highlighter` switched to `Light` build with explicit `registerLanguage` for the 5 languages the orchestrator generates (python/javascript/typescript/go/php) + plaintext fallback. Drops ~600 KB of hljs grammars.
+- `import * as THREE from 'three'` replaced with named imports in 8 battlefield files. Tree-shaking now effective on the Three.js chunk.
+- Self-hosted fonts: 14-weight render-blocking Google Fonts request replaced with two preloaded woff2 files (Orbitron 700, JetBrains Mono 400, ~28 KB total). `font-display: swap` + width-of-stroke synthesis ranges. BattleClaw theme drops `Roboto Mono` entirely. `unicode-range` covers arrows + dingbats actually used by the UI.
+- `IsometricGrid` background images now have `loading="lazy" / "eager"` (above-fold heuristic), `decoding="async"`, `fetchPriority` hints. WebP/AVIF conversion deferred to follow-up.
+
+### UX / hygiene
+
+- `focus:outline-hidden` (not a real Tailwind class — default browser outline was shimmering on top of `focus:border-hud-blue`) replaced with `focus:outline-none` across 10 sites in 5 modal/input files.
+- README footer's dangling `forge-e2e 1778840936` Unix-timestamp marker removed.
+- Dead code (`HIDDEN_AGENTS = []` filter in `Sidebar.tsx`) and unjustified `// eslint-disable-next-line react-hooks/exhaustive-deps` in `App.tsx` removed; effect now lists honest deps.
+- `git rm` of `BingSiteAuth.xml`, `google442e9c7a508f8a7d.html`, `tasks_temp.json` (~2 MB of repo-root scratch / SEO verification artifacts). `.gitignore` patterns added so they cannot return.
+
+### Notes
+
+- Two roast claims were investigated and **dismissed with receipts**: `pnpm.overrides.lodash: ^4.18.0` is correct (4.18.1 IS published — verified live npm registry), and `path-to-regexp: ^0.1.13` already excludes CVE-2024-45296 (patched at 0.1.10).
+
+### Verification
+
+- 4 commits: `81fc4aa` (theme-1), `7dba1d2` (theme-2a backend), `0a1073d` (theme-2b WebSocket), `ff4bc6f` (theme-2c frontend).
+- Each commit independently code-reviewed by a second-pass agent before merge.
+- `tsc --noEmit` clean across `packages/api` and `packages/ui` on every commit.
+- `costCalculator` jest tests: 31/31 pass.
+- CI green on all 6 jobs (Lint, Unit Tests, Integration Tests, Build, Docker Build Test, Security Scan).
+
+---
+
 ## [v0.11.x maintenance pass] - 2026-04-23
 
 Portfolio-hygiene sweep as the repo settled into stable-maintenance mode. No feature work — documentation, security, and housekeeping only.
