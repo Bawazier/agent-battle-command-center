@@ -86,8 +86,8 @@ export function useExecutionLogs(taskId: string | null) {
     processedLogIds.current.clear();
 
     try {
-      const execLogs = await executionLogsApi.getTaskLogs(taskIdToLoad);
-      const formatted = execLogs.flatMap(formatExecutionLog);
+      const { items } = await executionLogsApi.getTaskLogs(taskIdToLoad);
+      const formatted = items.flatMap(formatExecutionLog);
       setLogs(formatted);
     } catch (error) {
       console.error('Failed to load execution logs:', error);

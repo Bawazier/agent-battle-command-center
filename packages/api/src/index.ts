@@ -25,6 +25,7 @@ import { battleClawRouter } from './routes/battle-claw.js';
 import { missionsRouter } from './routes/missions.js';
 import { setupWebSocket } from './websocket/handler.js';
 import { budgetService } from './services/budgetService.js';
+import { costAggregator } from './services/costAggregator.js';
 import { TaskQueueService } from './services/taskQueue.js';
 import { HumanEscalationService } from './services/humanEscalation.js';
 import { ChatService } from './services/chatService.js';
@@ -76,6 +77,11 @@ resourcePool.initialize(io);
 
 // Initialize budget service for cost tracking
 budgetService.setSocketIO(io);
+
+// Hydrate in-memory cost aggregator (replaces full-table scan on every log insert)
+costAggregator.hydrate().catch((err) => {
+  log.error('Failed to hydrate cost aggregator at boot', { err });
+});
 
 // Initialize code review service (auto-reviews completed tasks)
 const codeReviewService = new CodeReviewService(prisma, io);

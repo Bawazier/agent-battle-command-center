@@ -373,7 +373,9 @@ def parse_agent_output(raw_output: str, task_id: Optional[str] = None, api_url: 
             headers = {"X-API-Key": api_key} if api_key else {}
             response = requests.get(f"{api_url}/api/execution-logs/task/{task_id}", headers=headers, timeout=5)
             if response.status_code == 200:
-                logs = response.json()
+                payload = response.json()
+                # Endpoint returns {items, nextCursor} (cursor-paginated by step).
+                logs = payload.get("items", []) if isinstance(payload, dict) else payload
                 return _parse_from_execution_logs(logs, raw_output)
         except Exception as e:
             print(f"⚠️  Could not fetch execution logs: {e}")

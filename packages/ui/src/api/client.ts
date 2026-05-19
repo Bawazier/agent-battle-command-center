@@ -35,13 +35,22 @@ async function request<T>(
 }
 
 // Tasks API
+export interface TaskListResponse {
+  items: Task[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
 export const tasksApi = {
-  list: (filters?: { status?: string; requiredAgent?: string }) => {
+  list: (filters?: { status?: string; requiredAgent?: string; limit?: number; offset?: number }) => {
     const params = new URLSearchParams();
     if (filters?.status) params.set('status', filters.status);
     if (filters?.requiredAgent) params.set('requiredAgent', filters.requiredAgent);
+    if (filters?.limit !== undefined) params.set('limit', String(filters.limit));
+    if (filters?.offset !== undefined) params.set('offset', String(filters.offset));
     const query = params.toString();
-    return request<Task[]>(`/tasks${query ? `?${query}` : ''}`);
+    return request<TaskListResponse>(`/tasks${query ? `?${query}` : ''}`);
   },
 
   get: (id: string) => request<Task>(`/tasks/${id}`),
@@ -229,9 +238,19 @@ export const codeReviewsApi = {
 };
 
 // Execution Logs API
+export interface TaskLogsPage {
+  items: ExecutionLog[];
+  nextCursor: number | null;
+}
+
 export const executionLogsApi = {
-  getTaskLogs: (taskId: string) =>
-    request<ExecutionLog[]>(`/execution-logs/task/${taskId}`),
+  getTaskLogs: (taskId: string, opts?: { afterStep?: number; limit?: number }) => {
+    const params = new URLSearchParams();
+    if (opts?.afterStep !== undefined) params.set('afterStep', String(opts.afterStep));
+    if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+    const query = params.toString();
+    return request<TaskLogsPage>(`/execution-logs/task/${taskId}${query ? `?${query}` : ''}`);
+  },
 
   getAgentLogs: (agentId: string, limit = 100) =>
     request<ExecutionLog[]>(`/execution-logs/agent/${agentId}?limit=${limit}`),

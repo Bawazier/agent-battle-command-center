@@ -112,7 +112,9 @@ def query_logs(task_id: str) -> str:
         )
 
         if response.status_code == 200:
-            logs = response.json()
+            payload = response.json()
+            # Endpoint returns {items, nextCursor} (cursor-paginated by step).
+            logs = payload.get("items", []) if isinstance(payload, dict) else payload
 
             # Format for easy reading
             formatted = {

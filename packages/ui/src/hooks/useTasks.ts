@@ -8,13 +8,13 @@ export function useTasks() {
   const [loading, setLoadingLocal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTasks = useCallback(async (filters?: { status?: string; requiredAgent?: string }) => {
+  const fetchTasks = useCallback(async (filters?: { status?: string; requiredAgent?: string; limit?: number; offset?: number }) => {
     setLoadingLocal(true);
     setLoading('tasks', true);
     setError(null);
     try {
-      const data = await tasksApi.list(filters);
-      setTasks(data);
+      const { items } = await tasksApi.list(filters);
+      setTasks(items);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch tasks');
     } finally {

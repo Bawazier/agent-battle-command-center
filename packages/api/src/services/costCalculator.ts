@@ -69,7 +69,7 @@ const COST_RATES: Record<string, { input: number; output: number }> = {
 /**
  * Get the cost rate for a specific model
  */
-function getModelRate(modelName: string | null): { input: number; output: number } {
+export function getModelRate(modelName: string | null): { input: number; output: number } {
   if (!modelName) {
     return { input: 0, output: 0 };
   }
@@ -171,10 +171,12 @@ export interface CostSummary {
   logCount: number;
 }
 
+export type ModelTier = 'free' | 'remote' | 'grok' | 'haiku' | 'sonnet' | 'opus';
+
 /**
  * Get model tier for grouping
  */
-function getModelTier(modelName: string | null): 'free' | 'remote' | 'grok' | 'haiku' | 'sonnet' | 'opus' {
+export function getModelTier(modelName: string | null): ModelTier {
   if (!modelName) return 'free';
 
   const normalized = modelName.toLowerCase();

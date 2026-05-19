@@ -4,7 +4,7 @@ import type { Server as SocketIOServer } from 'socket.io';
 import { prisma } from '../db/client.js';
 import { asyncHandler } from '../types/index.js';
 import { ExecutionLogService } from '../services/executionLogService.js';
-import { aggregateCosts } from '../services/costCalculator.js';
+import { costAggregator } from '../services/costAggregator.js';
 import { emitCostUpdate } from '../websocket/handler.js';
 import { budgetService } from '../services/budgetService.js';
 import type { Prisma } from '@prisma/client';
@@ -59,34 +59,29 @@ executionLogsRouter.post('/', asyncHandler(async (req, res) => {
     );
   }
 
-  // Emit cost update via WebSocket (throttled to avoid spam)
-  // Only emit if tokens were used
+  // Emit cost update via WebSocket using O(1) in-memory accumulator
+  // (was: full-table scan + reduce on every insert — O(n²) over a session)
   const io = req.app.get('io') as SocketIOServer;
   if (io && (log.inputTokens || log.outputTokens)) {
-    // Get all logs to calculate total costs
-    const allLogs = await prisma.executionLog.findMany();
-    const costSummary = aggregateCosts(allLogs);
-
-    emitCostUpdate(io, {
-      totalCost: costSummary.totalCost,
-      byModelTier: costSummary.byModelTier,
-      totalTokens: {
-        input: costSummary.totalInputTokens,
-        output: costSummary.totalOutputTokens,
-        total: costSummary.totalInputTokens + costSummary.totalOutputTokens,
-      },
-    });
+    costAggregator.addLog(log);
+    emitCostUpdate(io, costAggregator.snapshot());
   }
 
   res.status(201).json(log);
 }));
 
-// Get all logs for a specific task
+// Get logs for a specific task (paginated by step cursor)
 executionLogsRouter.get('/task/:taskId', asyncHandler(async (req, res) => {
   const logService = new ExecutionLogService(prisma);
-  const logs = await logService.getTaskLogs(req.params.taskId);
+  const afterStep = req.query.afterStep !== undefined
+    ? parseInt(req.query.afterStep as string)
+    : undefined;
+  const limit = req.query.limit !== undefined
+    ? parseInt(req.query.limit as string)
+    : undefined;
 
-  res.json(logs);
+  const result = await logService.getTaskLogs(req.params.taskId, { afterStep, limit });
+  res.json(result);
 }));
 
 // Get all logs for a specific agent

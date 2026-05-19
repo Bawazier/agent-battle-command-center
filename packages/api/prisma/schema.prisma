@@ -194,8 +194,13 @@ model ExecutionLog {
   task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
   agent Agent @relation(fields: [agentId], references: [id])
 
-  @@index([taskId])
-  @@index([agentId])
+  // Composites cover the single-column filter cases as left-prefixes:
+  // [taskId, step] supports getTaskLogs (filter taskId, order step asc) and
+  // getLoopLogs / deleteTaskLogs (filter taskId only).
+  // [agentId, timestamp] supports getAgentLogs (filter agentId, order timestamp desc).
+  // [timestamp] kept for the recent-logs endpoint.
+  @@index([taskId, step])
+  @@index([agentId, timestamp])
   @@index([timestamp])
   @@map("execution_logs")
 }

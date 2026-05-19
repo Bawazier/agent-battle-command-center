@@ -69,7 +69,9 @@ async function verifySystem() {
   console.log('\n4️⃣  Checking for existing tasks...');
   try {
     const response = await fetch('http://localhost:3001/api/tasks');
-    const tasks = await response.json();
+    const payload = await response.json();
+    // Endpoint returns {items, total, limit, offset} (paginated).
+    const tasks = Array.isArray(payload) ? payload : (payload.items ?? []);
 
     if (tasks.length > 0) {
       console.log(`⚠️  Found ${tasks.length} existing task(s). Recommend cleaning up before starting.`);

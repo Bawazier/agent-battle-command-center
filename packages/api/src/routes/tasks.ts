@@ -40,30 +40,39 @@ const updateTaskSchema = z.object({
   assignedAt: z.string().datetime().nullable().optional(),
 });
 
-// List tasks with filters
+// List tasks with filters (paginated)
 tasksRouter.get('/', asyncHandler(async (req, res) => {
   const status = req.query.status as string | undefined;
   const requiredAgent = req.query.requiredAgent as string | undefined;
   const assignedAgentId = req.query.assignedAgentId as string | undefined;
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 100, 1), 200);
+  const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
-  const tasks = await prisma.task.findMany({
-    where: {
-      ...(status && { status }),
-      ...(requiredAgent && { requiredAgent }),
-      ...(assignedAgentId && { assignedAgentId }),
-    },
-    include: {
-      assignedAgent: {
-        include: { agentType: true },
+  const where = {
+    ...(status && { status }),
+    ...(requiredAgent && { requiredAgent }),
+    ...(assignedAgentId && { assignedAgentId }),
+  };
+
+  const [items, total] = await prisma.$transaction([
+    prisma.task.findMany({
+      where,
+      include: {
+        assignedAgent: {
+          include: { agentType: true },
+        },
       },
-    },
-    orderBy: [
-      { priority: 'desc' },
-      { createdAt: 'asc' },
-    ],
-  });
+      orderBy: [
+        { priority: 'desc' },
+        { createdAt: 'asc' },
+      ],
+      take: limit,
+      skip: offset,
+    }),
+    prisma.task.count({ where }),
+  ]);
 
-  res.json(tasks);
+  res.json({ items, total, limit, offset });
 }));
 
 // Get single task
