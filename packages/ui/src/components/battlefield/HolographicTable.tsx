@@ -1,6 +1,6 @@
 import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { GridHelper, Material, InstancedMesh, Object3D, BufferGeometry, Float32BufferAttribute, LineBasicMaterial, Line } from 'three';
 import { HOLO_COLORS } from './types';
 
 /** Glowing holographic grid floor + ambient particle motes */
@@ -16,12 +16,12 @@ export function HolographicTable() {
 
 /** Flat glowing grid - holographic planning table */
 function HoloGrid() {
-  const gridRef = useRef<THREE.GridHelper>(null);
+  const gridRef = useRef<GridHelper>(null);
 
   useFrame(({ clock }) => {
     if (gridRef.current) {
       // Subtle opacity oscillation for hologram flicker
-      const mat = gridRef.current.material as THREE.Material;
+      const mat = gridRef.current.material as Material;
       mat.opacity = 0.15 + Math.sin(clock.elapsedTime * 2) * 0.03;
     }
   });
@@ -45,8 +45,8 @@ function HoloGrid() {
 
 /** Floating green data motes drifting upward */
 function AmbientParticles({ count }: { count: number }) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const meshRef = useRef<InstancedMesh>(null);
+  const dummy = useMemo(() => new Object3D(), []);
 
   // Initialize random positions
   const particleData = useMemo(() => {
@@ -121,14 +121,14 @@ function TableBorder() {
 
 function CornerLine({ start, end }: { start: [number, number, number]; end: [number, number, number] }) {
   const lineObj = useMemo(() => {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute([...start, ...end], 3));
-    const material = new THREE.LineBasicMaterial({
+    const geometry = new BufferGeometry();
+    geometry.setAttribute('position', new Float32BufferAttribute([...start, ...end], 3));
+    const material = new LineBasicMaterial({
       color: HOLO_COLORS.primary,
       transparent: true,
       opacity: 0.5,
     });
-    return new THREE.Line(geometry, material);
+    return new Line(geometry, material);
   }, [start, end]);
 
   return <primitive object={lineObj} />;

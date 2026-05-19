@@ -1,6 +1,6 @@
 import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { Group, MathUtils, Mesh } from 'three';
 import { getAgentColor, type BattlefieldSquad } from './types';
 
 interface AgentSquadProps {
@@ -13,7 +13,7 @@ interface AgentSquadProps {
  * Glows in tier color (blue/green/purple).
  */
 export function AgentSquad({ squad }: AgentSquadProps) {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<Group>(null);
   const moveProgress = useRef(squad.moveProgress);
   const color = useMemo(() => getAgentColor(squad.tier), [squad.tier]);
 
@@ -41,9 +41,9 @@ export function AgentSquad({ squad }: AgentSquadProps) {
     const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // ease-in-out
 
     groupRef.current.position.set(
-      THREE.MathUtils.lerp(squad.position[0], squad.targetPosition[0], ease),
+      MathUtils.lerp(squad.position[0], squad.targetPosition[0], ease),
       0.15,
-      THREE.MathUtils.lerp(squad.position[2], squad.targetPosition[2], ease),
+      MathUtils.lerp(squad.position[2], squad.targetPosition[2], ease),
     );
 
     // Face the target building direction
@@ -77,7 +77,7 @@ function InfantryFigure({
   color: string;
   index: number;
 }) {
-  const meshRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<Mesh>(null);
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return;

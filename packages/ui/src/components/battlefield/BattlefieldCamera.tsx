@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import * as THREE from 'three';
+import { Vector3 } from 'three';
 
 interface BattlefieldCameraProps {
   /** Whether the battlefield is actively showing (triggers zoom-in) */
@@ -51,7 +51,7 @@ export function BattlefieldCamera({ active }: BattlefieldCameraProps) {
       maxDistance={60}
       minPolarAngle={Math.PI / 6}     // Don't go too flat
       maxPolarAngle={Math.PI / 3}      // Don't go too overhead
-      target={new THREE.Vector3(0, 0, 0)}
+      target={new Vector3(0, 0, 0)}
     />
   );
 }

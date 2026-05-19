@@ -1,6 +1,6 @@
 import { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { Group, Mesh, MeshBasicMaterial, InstancedMesh, Object3D, Vector3 } from 'three';
 import { createBuildingGeometries, disposeGeometries } from './BuildingGeometries';
 import { HOLO_COLORS, getBuildingTier, BUILDING_TIERS } from './types';
 import type { Task } from '@abcc/shared';
@@ -21,7 +21,7 @@ const COLLAPSE_DURATION = 2.0;
  * - Failure: red tint, vertices collapse to ground, red particles
  */
 export function BuildingExplosion({ task, position, success, onComplete }: BuildingExplosionProps) {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<Group>(null);
   const progressRef = useRef(0);
   const [done, setDone] = useState(false);
 
@@ -72,7 +72,7 @@ export function BuildingExplosion({ task, position, success, onComplete }: Build
     if (success) {
       // Explosion: pieces fly outward
       for (let i = 0; i < children.length; i++) {
-        const child = children[i] as THREE.Mesh;
+        const child = children[i] as Mesh;
         if (!child.isMesh) continue;
 
         const dir = explosionDirs[i];
@@ -83,13 +83,13 @@ export function BuildingExplosion({ task, position, success, onComplete }: Build
         child.rotation.set(dir.rx * p, dir.ry * p, dir.rz * p);
 
         // Fade out
-        const mat = child.material as THREE.MeshBasicMaterial;
+        const mat = child.material as MeshBasicMaterial;
         mat.opacity = (1 - p) * 0.8;
       }
     } else {
       // Collapse: vertices sink to y=0
       for (let i = 0; i < children.length; i++) {
-        const child = children[i] as THREE.Mesh;
+        const child = children[i] as Mesh;
         if (!child.isMesh) continue;
 
         // Scale Y to 0 (melt)
@@ -97,7 +97,7 @@ export function BuildingExplosion({ task, position, success, onComplete }: Build
         child.position.y = -(p * scale);
 
         // Fade and redden
-        const mat = child.material as THREE.MeshBasicMaterial;
+        const mat = child.material as MeshBasicMaterial;
         mat.opacity = (1 - p * 0.8) * 0.7;
       }
     }
@@ -136,14 +136,14 @@ function ExplosionParticles({
   color: string;
   success: boolean;
 }) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const meshRef = useRef<InstancedMesh>(null);
+  const dummy = useMemo(() => new Object3D(), []);
   const COUNT = 40;
 
   const particleData = useMemo(
     () =>
       Array.from({ length: COUNT }, () => ({
-        dir: new THREE.Vector3(
+        dir: new Vector3(
           (Math.random() - 0.5) * 2,
           Math.random() * 2,
           (Math.random() - 0.5) * 2,

@@ -1,6 +1,6 @@
 import { useRef, useMemo, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import * as THREE from 'three';
+import { Vector3, Color, CanvasTexture, InstancedMesh, Object3D, InstancedBufferAttribute, AdditiveBlending, DoubleSide, Camera } from 'three';
 import { getAgentColor, type BattlefieldSquad, type BattlefieldBuilding } from './types';
 
 interface ProjectileSystemProps {
@@ -10,12 +10,12 @@ interface ProjectileSystemProps {
 
 interface Projectile {
   id: number;
-  startPos: THREE.Vector3;
-  endPos: THREE.Vector3;
+  startPos: Vector3;
+  endPos: Vector3;
   progress: number;
   color: string;
   active: boolean;
-  trail: THREE.Vector3[]; // ring buffer of last 4 positions
+  trail: Vector3[]; // ring buffer of last 4 positions
   trailIdx: number;
 }
 
@@ -26,7 +26,7 @@ const FIRE_INTERVAL = 0.5;
 const PROJECTILE_SPEED = 3.3;
 
 /** Create a soft circular glow texture via canvas (for projectiles + trails) */
-function createGlowTexture(): THREE.CanvasTexture {
+function createGlowTexture(): CanvasTexture {
   const size = 64;
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -42,13 +42,13 @@ function createGlowTexture(): THREE.CanvasTexture {
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, size, size);
 
-  const texture = new THREE.CanvasTexture(canvas);
+  const texture = new CanvasTexture(canvas);
   texture.needsUpdate = true;
   return texture;
 }
 
 /** Create a starburst flare texture via canvas (for impacts + flashes) */
-function createFlareTexture(): THREE.CanvasTexture {
+function createFlareTexture(): CanvasTexture {
   const size = 64;
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -81,7 +81,7 @@ function createFlareTexture(): THREE.CanvasTexture {
     ctx.stroke();
   }
 
-  const texture = new THREE.CanvasTexture(canvas);
+  const texture = new CanvasTexture(canvas);
   texture.needsUpdate = true;
   return texture;
 }
@@ -92,9 +92,9 @@ function createFlareTexture(): THREE.CanvasTexture {
  */
 export function ProjectileSystem({ squads, buildings }: ProjectileSystemProps) {
   const { camera } = useThree();
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const trailMeshRef = useRef<THREE.InstancedMesh>(null);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const meshRef = useRef<InstancedMesh>(null);
+  const trailMeshRef = useRef<InstancedMesh>(null);
+  const dummy = useMemo(() => new Object3D(), []);
 
   const glowTexture = useMemo(() => createGlowTexture(), []);
   const flareTexture = useMemo(() => createFlareTexture(), []);
@@ -110,19 +110,19 @@ export function ProjectileSystem({ squads, buildings }: ProjectileSystemProps) {
   const projectilesRef = useRef<Projectile[]>(
     Array.from({ length: MAX_PROJECTILES }, (_, i) => ({
       id: i,
-      startPos: new THREE.Vector3(),
-      endPos: new THREE.Vector3(),
+      startPos: new Vector3(),
+      endPos: new Vector3(),
       progress: 0,
       color: '#ffffff',
       active: false,
-      trail: Array.from({ length: TRAIL_SEGMENTS }, () => new THREE.Vector3(0, -100, 0)),
+      trail: Array.from({ length: TRAIL_SEGMENTS }, () => new Vector3(0, -100, 0)),
       trailIdx: 0,
     })),
   );
 
   const fireTimers = useRef<Map<string, number>>(new Map());
-  const impactParticles = useRef<{ pos: THREE.Vector3; life: number; color: string; vel: THREE.Vector3 }[]>([]);
-  const impactFlashes = useRef<{ pos: THREE.Vector3; life: number; color: string }[]>([]);
+  const impactParticles = useRef<{ pos: Vector3; life: number; color: string; vel: Vector3 }[]>([]);
+  const impactFlashes = useRef<{ pos: Vector3; life: number; color: string }[]>([]);
 
   // Color arrays for instanced meshes
   const colorArray = useMemo(() => new Float32Array(MAX_PROJECTILES * 3).fill(0), []);
@@ -131,10 +131,10 @@ export function ProjectileSystem({ squads, buildings }: ProjectileSystemProps) {
   // Attach instanceColor on mount
   useEffect(() => {
     if (meshRef.current && !meshRef.current.instanceColor) {
-      meshRef.current.instanceColor = new THREE.InstancedBufferAttribute(colorArray, 3);
+      meshRef.current.instanceColor = new InstancedBufferAttribute(colorArray, 3);
     }
     if (trailMeshRef.current && !trailMeshRef.current.instanceColor) {
-      trailMeshRef.current.instanceColor = new THREE.InstancedBufferAttribute(trailColorArray, 3);
+      trailMeshRef.current.instanceColor = new InstancedBufferAttribute(trailColorArray, 3);
     }
   }, [colorArray, trailColorArray]);
 
@@ -197,13 +197,13 @@ export function ProjectileSystem({ squads, buildings }: ProjectileSystemProps) {
 
       if (proj.progress >= 1) {
         // Impact! Create directional particles
-        const impactDir = new THREE.Vector3().copy(proj.endPos).sub(proj.startPos).normalize();
+        const impactDir = new Vector3().copy(proj.endPos).sub(proj.startPos).normalize();
         for (let p = 0; p < 5; p++) {
           impactParticles.current.push({
             pos: proj.endPos.clone(),
             life: 0.4,
             color: proj.color,
-            vel: new THREE.Vector3(
+            vel: new Vector3(
               (Math.random() - 0.5) * 2 + impactDir.x * 0.5,
               Math.random() * 2,
               (Math.random() - 0.5) * 2 + impactDir.z * 0.5,
@@ -244,7 +244,7 @@ export function ProjectileSystem({ squads, buildings }: ProjectileSystemProps) {
       meshRef.current.setMatrixAt(i, dummy.matrix);
 
       // Set instance color
-      const c = new THREE.Color(proj.active ? proj.color : '#000000');
+      const c = new Color(proj.active ? proj.color : '#000000');
       colorArray[i * 3] = c.r;
       colorArray[i * 3 + 1] = c.g;
       colorArray[i * 3 + 2] = c.b;
@@ -278,7 +278,7 @@ export function ProjectileSystem({ squads, buildings }: ProjectileSystemProps) {
           trailMeshRef.current.setMatrixAt(idx, dummy.matrix);
 
           // Color-match to projectile
-          const tc = new THREE.Color(proj.active ? proj.color : '#000000');
+          const tc = new Color(proj.active ? proj.color : '#000000');
           trailColorArray[idx * 3] = tc.r;
           trailColorArray[idx * 3 + 1] = tc.g;
           trailColorArray[idx * 3 + 2] = tc.b;
@@ -300,10 +300,10 @@ export function ProjectileSystem({ squads, buildings }: ProjectileSystemProps) {
           map={glowTexture}
           transparent
           opacity={0.9}
-          blending={THREE.AdditiveBlending}
+          blending={AdditiveBlending}
           depthWrite={false}
           toneMapped={false}
-          side={THREE.DoubleSide}
+          side={DoubleSide}
         />
       </instancedMesh>
 
@@ -314,10 +314,10 @@ export function ProjectileSystem({ squads, buildings }: ProjectileSystemProps) {
           map={glowTexture}
           transparent
           opacity={0.6}
-          blending={THREE.AdditiveBlending}
+          blending={AdditiveBlending}
           depthWrite={false}
           toneMapped={false}
-          side={THREE.DoubleSide}
+          side={DoubleSide}
         />
       </instancedMesh>
 
@@ -338,14 +338,14 @@ function ImpactParticles({
   flareTexture,
   camera,
 }: {
-  particlesRef: React.MutableRefObject<{ pos: THREE.Vector3; life: number; color: string; vel: THREE.Vector3 }[]>;
-  flashesRef: React.MutableRefObject<{ pos: THREE.Vector3; life: number; color: string }[]>;
-  flareTexture: THREE.CanvasTexture;
-  camera: THREE.Camera;
+  particlesRef: React.MutableRefObject<{ pos: Vector3; life: number; color: string; vel: Vector3 }[]>;
+  flashesRef: React.MutableRefObject<{ pos: Vector3; life: number; color: string }[]>;
+  flareTexture: CanvasTexture;
+  camera: Camera;
 }) {
-  const meshRef = useRef<THREE.InstancedMesh>(null);
-  const flashMeshRef = useRef<THREE.InstancedMesh>(null);
-  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const meshRef = useRef<InstancedMesh>(null);
+  const flashMeshRef = useRef<InstancedMesh>(null);
+  const dummy = useMemo(() => new Object3D(), []);
   const MAX_IMPACTS = 50;
   const MAX_FLASHES = 10;
 
@@ -354,10 +354,10 @@ function ImpactParticles({
 
   useEffect(() => {
     if (meshRef.current && !meshRef.current.instanceColor) {
-      meshRef.current.instanceColor = new THREE.InstancedBufferAttribute(impactColorArray, 3);
+      meshRef.current.instanceColor = new InstancedBufferAttribute(impactColorArray, 3);
     }
     if (flashMeshRef.current && !flashMeshRef.current.instanceColor) {
-      flashMeshRef.current.instanceColor = new THREE.InstancedBufferAttribute(flashColorArray, 3);
+      flashMeshRef.current.instanceColor = new InstancedBufferAttribute(flashColorArray, 3);
     }
   }, [impactColorArray, flashColorArray]);
 
@@ -391,7 +391,7 @@ function ImpactParticles({
         // Billboard: face camera
         dummy.quaternion.copy(camera.quaternion);
         dummy.scale.setScalar(0.05 * fade);
-        const c = new THREE.Color(impact.color);
+        const c = new Color(impact.color);
         impactColorArray[i * 3] = c.r;
         impactColorArray[i * 3 + 1] = c.g;
         impactColorArray[i * 3 + 2] = c.b;
@@ -430,7 +430,7 @@ function ImpactParticles({
           // Expand quickly then fade
           const scale = progress < 0.2 ? progress * 2.5 : 0.5 * (1 - progress);
           dummy.scale.setScalar(Math.max(0, scale));
-          const c = new THREE.Color(flash.color);
+          const c = new Color(flash.color);
           flashColorArray[i * 3] = c.r;
           flashColorArray[i * 3 + 1] = c.g;
           flashColorArray[i * 3 + 2] = c.b;
@@ -454,10 +454,10 @@ function ImpactParticles({
           map={flareTexture}
           transparent
           opacity={0.8}
-          blending={THREE.AdditiveBlending}
+          blending={AdditiveBlending}
           depthWrite={false}
           toneMapped={false}
-          side={THREE.DoubleSide}
+          side={DoubleSide}
         />
       </instancedMesh>
 
@@ -468,10 +468,10 @@ function ImpactParticles({
           map={flareTexture}
           transparent
           opacity={0.6}
-          blending={THREE.AdditiveBlending}
+          blending={AdditiveBlending}
           depthWrite={false}
           toneMapped={false}
-          side={THREE.DoubleSide}
+          side={DoubleSide}
         />
       </instancedMesh>
     </>

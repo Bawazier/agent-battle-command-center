@@ -1,6 +1,6 @@
 import { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { Color, Group, Mesh, MeshBasicMaterial, BufferGeometry, BufferAttribute, AdditiveBlending } from 'three';
 import { createBuildingGeometries, disposeGeometries } from './BuildingGeometries';
 import { HOLO_COLORS, type BattlefieldBuilding } from './types';
 
@@ -23,8 +23,8 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 }
 
 // Reusable color objects for lerping (avoid per-frame allocation)
-const _colorA = new THREE.Color();
-const _colorB = new THREE.Color();
+const _colorA = new Color();
+const _colorB = new Color();
 
 /** Lerp between two hex colors */
 function lerpColor(a: string, b: string, t: number): string {
@@ -45,10 +45,10 @@ function lerpColor(a: string, b: string, t: number): string {
  * - Hologram flicker effect
  */
 export function TaskBuilding({ building }: TaskBuildingProps) {
-  const groupRef = useRef<THREE.Group>(null);
+  const groupRef = useRef<Group>(null);
   const entryProgress = useRef(0);
-  const materialsRef = useRef<THREE.MeshBasicMaterial[]>([]);
-  const geometriesRef = useRef<THREE.BufferGeometry[]>([]);
+  const materialsRef = useRef<MeshBasicMaterial[]>([]);
+  const geometriesRef = useRef<BufferGeometry[]>([]);
   const originalPositions = useRef<Float32Array[]>([]);
   const displayedDamageRef = useRef(0);
 
@@ -215,7 +215,7 @@ export function TaskBuilding({ building }: TaskBuildingProps) {
     // Apply damage displacement to vertices
     if (damage > 0.05) {
       geometries.forEach((geo, geoIdx) => {
-        const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+        const pos = geo.getAttribute('position') as BufferAttribute;
         const orig = originalPositions.current[geoIdx];
         const seeds = vertexSeedsRef.current[geoIdx];
         if (!orig || !seeds) return;
@@ -286,7 +286,7 @@ export function TaskBuilding({ building }: TaskBuildingProps) {
       {geometries.map((geo, i) => (
         <mesh key={i} geometry={geo}>
           <meshBasicMaterial
-            ref={(mat: THREE.MeshBasicMaterial | null) => {
+            ref={(mat: MeshBasicMaterial | null) => {
               if (mat) materialsRef.current[i] = mat;
             }}
             color={HOLO_COLORS.primary}
@@ -335,8 +335,8 @@ function DebrisPiece({
   damage: React.MutableRefObject<number>;
   buildingScale: number;
 }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const meshRef = useRef<Mesh>(null);
+  const matRef = useRef<MeshBasicMaterial>(null);
   const seedNorm = (seed % 1000) / 1000;
   const isFalling = phaseMin >= 0.5; // Phase 3+ debris falls with gravity
 
@@ -418,8 +418,8 @@ function RepairShield({
   buildingScale: number;
   startTime: number;
 }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const meshRef = useRef<Mesh>(null);
+  const matRef = useRef<MeshBasicMaterial>(null);
   const DURATION_MS = 800;
 
   useFrame(({ clock }) => {
@@ -451,7 +451,7 @@ function RepairShield({
         wireframe
         transparent
         opacity={0.4}
-        blending={THREE.AdditiveBlending}
+        blending={AdditiveBlending}
         depthWrite={false}
         toneMapped={false}
       />

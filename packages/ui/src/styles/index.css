@@ -1,5 +1,26 @@
 @import 'tailwindcss';
 
+/* Self-hosted display + mono. Two woff2 files (~28 KB total) replace the
+   previous 14-weight Google Fonts request. font-weight ranges let the
+   browser synthesize bolder/lighter strokes from the single weight where
+   needed instead of fetching additional files. */
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/jetbrainsmono-400-latin.woff2') format('woff2');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+2000-23FF, U+2700-27BF, U+FB00-FB4F;
+}
+@font-face {
+  font-family: 'Orbitron';
+  src: url('/fonts/orbitron-700-latin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF;
+}
+
 @theme {
   --color-command-bg: #0a0e14;
   --color-command-panel: #141a22;
@@ -22,7 +43,7 @@
   --color-status-completed: #10b981;
   --color-status-failed: #ef4444;
 
-  --font-mono: JetBrains Mono, Fira Code, monospace;
+  --font-mono: 'JetBrains Mono', monospace;
   --font-display: Orbitron, sans-serif;
 
   --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
@@ -191,7 +212,7 @@
   --color-hud-amber: #facc15;
   --color-agent-coder: #14f5c7;
   --color-agent-qa: #facc15;
-  --font-mono: 'Roboto Mono', 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 /*

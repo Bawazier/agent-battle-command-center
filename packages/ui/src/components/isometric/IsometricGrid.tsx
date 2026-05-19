@@ -20,11 +20,17 @@ interface Props {
 export const IsometricGrid = memo(function IsometricGrid({ bgIndex }: Props) {
   const src = BACKGROUNDS[bgIndex % BACKGROUNDS.length];
 
+  // Only the first background is above-the-fold on initial render; defer the
+  // rest. decoding="async" lets the browser paint without waiting for the image.
+  const isFirst = bgIndex % BACKGROUNDS.length === 0;
   return (
     <img
       src={src}
       alt=""
       draggable={false}
+      loading={isFirst ? 'eager' : 'lazy'}
+      decoding="async"
+      fetchPriority={isFirst ? 'high' : 'low'}
       style={{
         position: 'absolute',
         inset: 0,

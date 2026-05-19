@@ -1,8 +1,25 @@
 import { X, ChevronRight } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import SyntaxHighlighter from 'react-syntax-highlighter';
+import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomOneDark as oneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
+import python from 'react-syntax-highlighter/dist/esm/languages/hljs/python';
+import javascript from 'react-syntax-highlighter/dist/esm/languages/hljs/javascript';
+import typescript from 'react-syntax-highlighter/dist/esm/languages/hljs/typescript';
+import go from 'react-syntax-highlighter/dist/esm/languages/hljs/go';
+import php from 'react-syntax-highlighter/dist/esm/languages/hljs/php';
+import plaintext from 'react-syntax-highlighter/dist/esm/languages/hljs/plaintext';
 import { useUIStore } from '../../store/uiState';
+
+// Register only the languages ABCC actually generates (orchestrator.py supports
+// python / javascript / typescript / go / php). Switching to the `Light` build
+// drops ~600 KB vs. the maximalist default that bundles all 189 hljs grammars.
+const SUPPORTED_LANGS = new Set(['python', 'javascript', 'typescript', 'go', 'php']);
+SyntaxHighlighter.registerLanguage('python', python);
+SyntaxHighlighter.registerLanguage('javascript', javascript);
+SyntaxHighlighter.registerLanguage('typescript', typescript);
+SyntaxHighlighter.registerLanguage('go', go);
+SyntaxHighlighter.registerLanguage('php', php);
+SyntaxHighlighter.registerLanguage('plaintext', plaintext);
 
 export function CodeWindow() {
   const { missionCodeFiles, toggleCodeWindow, codeWindowOpen } = useUIStore();
@@ -72,13 +89,17 @@ export function CodeWindow() {
               <span className="text-hud-blue">{currentFile.subtaskTitle}</span> • <span className="text-gray-600">{currentFile.language}</span>
             </div>
             <SyntaxHighlighter
-              language={currentFile.language.toLowerCase()}
+              language={
+                SUPPORTED_LANGS.has(currentFile.language.toLowerCase())
+                  ? currentFile.language.toLowerCase()
+                  : 'plaintext'
+              }
               style={oneDark as Record<string, Record<string, string>>}
               customStyle={{
                 margin: 0,
                 padding: '16px',
                 fontSize: '12px',
-                fontFamily: 'Fira Code, Courier New, monospace',
+                fontFamily: '"JetBrains Mono", monospace',
                 lineHeight: '1.5',
                 backgroundColor: 'transparent',
               }}

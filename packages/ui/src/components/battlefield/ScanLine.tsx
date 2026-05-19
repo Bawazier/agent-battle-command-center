@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { Mesh, MeshBasicMaterial, DoubleSide } from 'three';
 import { HOLO_COLORS } from './types';
 
 /**
@@ -8,8 +8,8 @@ import { HOLO_COLORS } from './types';
  * Matches the existing CSS scanline HUD aesthetic.
  */
 export function ScanLine() {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const meshRef = useRef<Mesh>(null);
+  const matRef = useRef<MeshBasicMaterial>(null);
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
@@ -38,7 +38,7 @@ export function ScanLine() {
         transparent
         opacity={0.06}
         depthWrite={false}
-        side={THREE.DoubleSide}
+        side={DoubleSide}
       />
     </mesh>
   );
