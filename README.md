@@ -2,7 +2,7 @@
 
 > **Status: stable at v0.11.0 (March 2026).** ABCC is the godfather of a family of AI coding-agent experiments I've been building since January 2026. Active development has since moved to newer projects — most notably **[claudette](https://github.com/mrdushidush/claudette)**, a local-first personal-assistant descendant of the same lineage (messaging-app access + voice + persistent scheduler, also on [crates.io](https://crates.io/crates/claudette)). This repo remains online as a reference implementation of the architecture (Campbell complexity routing, tiered Ollama → Claude fallback, RTS-style TUI, Bark military voice lines). Issues and PRs still welcome; don't expect rapid feature work here — that's happening in the successor projects.
 
-> **Run 90% of coding tasks for FREE on a $300 GPU — including LRU caches and RPN calculators — with Claude handling the rest at ~$0.002/task average.**
+> **Run ~98% of C1-C9 coding tasks for FREE on a $300 GPU (with auto-retry; 88% raw single-pass) — including LRU caches and RPN calculators — with Claude handling C10 decomposition at ~$0.002/task average.**
 
 An RTS-inspired control center for orchestrating AI coding agents with intelligent tiered routing. Watch your AI agents work in real-time with a retro strategy game-style interface.
 
@@ -11,7 +11,7 @@ An RTS-inspired control center for orchestrating AI coding agents with intellige
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
 [![Tests](https://img.shields.io/badge/tests-23%20test%20files-success)](./packages/api/src/__tests__)
-[![Ollama Tested](https://img.shields.io/badge/Ollama%20C1--C9-90%25%20pass%20(16K%20ctx)-success)](./scripts/)
+[![Ollama Tested](https://img.shields.io/badge/Ollama%20C1--C9-98%25%20w%2F%20retry%20%E2%80%A2%2088%25%20raw-success)](./scripts/QWEN25_CODER_7B_ULTIMATE_REPORT.md)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 **If you find this useful, [give it a star](https://github.com/mrdushidush/agent-battle-command-center/stargazers)** — it helps others discover this project and motivates development.
@@ -25,9 +25,9 @@ An RTS-inspired control center for orchestrating AI coding agents with intellige
 ## ✨ What Makes This Special
 
 **💰 Cost Optimization (20x cheaper than cloud-only)**
-- FREE local execution via Ollama (qwen2.5-coder:7b + custom 16K context Modelfile) for 90% of tasks
-- Smart tiered routing: only use paid Claude API for multi-class architectural tasks
-- **Proven:** 90% success rate on 40-task C1-C9 suite in just 11 minutes (Feb 2026)
+- FREE local execution via Ollama (base `qwen2.5-coder:7b` + routed `:16k` / `:32k` context variants) for C1-C9 tasks
+- Smart tiered routing: only use paid Claude API for C10 multi-class architectural tasks
+- **Proven:** 88% raw / 98% with auto-retry on the 40-task C1-C9 stress benchmark — see [QWEN25_CODER_7B_ULTIMATE_REPORT.md](./scripts/QWEN25_CODER_7B_ULTIMATE_REPORT.md)
 - Passes LRU Cache, RPN Calculator, Sorted Linked List, Stack — all FREE on local GPU
 
 **🎯 Academic Complexity Routing + Per-Agent Model Override**
@@ -128,7 +128,7 @@ Pre-built images on Docker Hub. No cloning the full repo, no build step — just
 5. **Verify health**
    ```bash
    docker ps                                    # All 6 containers running
-   docker exec abcc-ollama ollama list           # Should show qwen2.5-coder:32k
+   docker exec abcc-ollama ollama list           # Should show qwen2.5-coder:7b + :16k + :32k
    curl http://localhost:3001/health             # API healthy
    ```
 
@@ -176,7 +176,7 @@ For contributors and developers who want to modify the code.
 
    # Check Ollama model is loaded
    docker exec abcc-ollama ollama list
-   # Should show: qwen2.5-coder:32k (custom 16K context model)
+   # Should show: qwen2.5-coder:7b (base) + :16k (C1-C6 routing) + :32k (C7-C9 routing)
    ```
 
 ---
@@ -209,8 +209,9 @@ For contributors and developers who want to modify the code.
                                  ┌──────────▼──────────────────┐
                                  │   Ollama (Local LLM)        │
                                  │      localhost:11434        │
-                                 │  • qwen2.5-coder:32k        │
-                                 │    (7b + 16K ctx Modelfile) │
+                                 │  • qwen2.5-coder:7b base    │
+                                 │    + :16k (C1-C6 routing)   │
+                                 │    + :32k (C7-C9 routing)   │
                                  │  • RTX 3060 Ti 8GB VRAM     │
                                  │  • 93% GPU / 7% CPU         │
                                  │  • FREE execution           │
@@ -222,11 +223,11 @@ For contributors and developers who want to modify the code.
 ## 🎯 Key Features
 
 ### Tiered Task Routing + Per-Agent Model Selection (v0.7.0)
-- **Complexity 1-8** → Ollama (FREE, ~12s avg with 16K context) - 90-100% success rate
-- **Complexity 9** → Ollama for single-class tasks (80% — LRU Cache, Stack, RPN Calculator)
-- **Complexity 9-10** → Sonnet (~$0.01/task) - Multi-class architectural tasks only
-- **Decomposition** → Opus (~$0.02/task) - Breaking down complex tasks only
-- **Haiku eliminated** from execution routing — Ollama handles C7-C8 at 100%
+- **Complexity 1-6** → Ollama with `:16k` context variant (FREE, ~12s avg)
+- **Complexity 7-9** → Ollama with `:32k` context variant (FREE) — or Remote Ollama if `REMOTE_OLLAMA_URL` is set
+- **Complexity 10** → Sonnet decomposition (~$0.005/task) — multi-class architectural tasks only
+- **Combined pass rate:** 88% raw / 98% with auto-retry on the 40-task C1-C9 stress benchmark
+- **Haiku eliminated** from execution routing — Ollama handles C7-C9; Haiku only escalates failed validations
 - **Per-agent model override** — sidebar dropdown to force any agent to use a specific model
 - **Grok (xAI) support** — set `XAI_API_KEY` to enable Grok as a model option
 
@@ -281,8 +282,8 @@ ANTHROPIC_API_KEY=sk-ant-api03-...
 POSTGRES_PASSWORD=your_secure_password
 DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@localhost:5432/abcc?schema=public
 
-# Ollama Model (custom 16K context Modelfile, auto-created on startup)
-OLLAMA_MODEL=qwen2.5-coder:32k
+# Ollama base model (router auto-picks :16k for C1-C6 and :32k for C7-C9 variants)
+OLLAMA_MODEL=qwen2.5-coder:7b
 
 # Grok / xAI (OPTIONAL — enables Grok as a model option in agent dropdowns)
 XAI_API_KEY=xai-your_key_here
@@ -415,7 +416,7 @@ curl http://localhost:3001/api/agents/ollama-status \
 node scripts/ollama-stress-test.js
 ```
 
-**40-task ultimate test (C1-C9, 90% pass rate, 11 min with 16K context):**
+**40-task ultimate test (C1-C9, 88% raw / 98% with auto-retry, dynamic 16K/32K context):**
 ```bash
 node scripts/ollama-stress-test-40.js
 ```
@@ -469,15 +470,15 @@ node scripts/full-system-health-check.js --skip-load-test
 
 **Solution:**
 ```bash
-# Check if model is downloaded (should show qwen2.5-coder:32k)
+# Check if models are downloaded (should show qwen2.5-coder:7b + :16k + :32k)
 docker exec abcc-ollama ollama list
 
-# If missing, the entrypoint auto-creates it. Restart the container:
+# If missing, the entrypoint auto-creates the routed variants. Restart the container:
 docker compose restart ollama
 
 # Or pull base model and create manually:
 docker exec abcc-ollama ollama pull qwen2.5-coder:7b
-# The 32k model (16K context) is auto-created from the base model on startup
+# The :16k (C1-C6 routing) and :32k (C7-C9 routing) variants are auto-built from the base on startup
 
 # Check logs
 docker logs abcc-ollama --tail 50
@@ -680,13 +681,15 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 
 | Metric | Result | Test |
 |--------|--------|------|
-| **Ollama C1-C9 Success** | **90% (36/40)** | 40-task ultimate test, 16K context |
-| **Ollama C1-C8 Success** | 100% (20/20) | 20-task stress test |
-| **Total runtime (40 tasks)** | **11 minutes** | 4.5x faster than 4K context (was 43 min) |
-| **Ollama avg time** | **12s** | 16K context (was 54s with 4K) |
+| **Ollama C1-C9 Success (raw)** | **88% (35/40)** | 40-task ultimate test, dynamic 16K/32K context |
+| **Ollama C1-C9 Success (with auto-retry)** | **98% (39/40)** | Same suite, with validation retry pipeline (v0.5.0+) |
+| **Ollama C1-C8 Success** | 100% (20/20) | 20-task baseline stress test |
+| **Ollama avg time** | **12s/task** | dynamic 16K/32K context |
 | **Cost per task (avg)** | $0.002 | Mixed complexity batch |
 | **GPU utilization** | 93% GPU / 7% CPU | 7GB VRAM on RTX 3060 Ti 8GB |
 | **Parallel speedup** | 40-60% | vs sequential |
+
+Canonical benchmark report: [`scripts/QWEN25_CODER_7B_ULTIMATE_REPORT.md`](./scripts/QWEN25_CODER_7B_ULTIMATE_REPORT.md)
 
 **16K Context Window Upgrade (Feb 17, 2026):**
 
@@ -721,7 +724,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for:
 - ✅ **3-tier routing** — Local Ollama / Remote Ollama / Claude API (v0.5.1)
 - ✅ **Auto-retry pipeline** — 98% pass rate with validation + retry (v0.5.0)
 - ✅ Tiered task routing (Ollama/Sonnet/Opus)
-- ✅ 16K context window for Ollama — 90% C1-C9, 4.5x faster
+- ✅ Dynamic 16K/32K context routing for Ollama — 88% raw / 98% with auto-retry, C1-C9
 - ✅ 3D holographic battlefield view with React Three Fiber
 - ✅ Bark TTS military radio voice lines — 96 clips, 3 packs
 - ✅ API authentication and rate limiting

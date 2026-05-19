@@ -30,17 +30,17 @@ The agents service uses **crewai 0.86.0** which internally uses **litellm** for 
 
 ### Ollama Configuration (Critical)
 
-**Models:** 3 context-size variants of qwen2.5-coder:7b (dynamic routing by complexity)
-- `qwen2.5-coder:8k` — C1-C6 simple/moderate tasks (default, fastest)
-- `qwen2.5-coder:16k` — C7-C8 complex tasks (algorithms, data structures)
-- `qwen2.5-coder:32k` — C9 extreme tasks (single-class implementations)
+**Models:** base `qwen2.5-coder:7b` + 2 context-routed variants (dynamic routing by complexity)
+- `qwen2.5-coder:16k` — **default routing target for C1-C6** simple/moderate tasks
+- `qwen2.5-coder:32k` — C7-C9 complex/extreme tasks (algorithms, data structures, single-class implementations)
+- `qwen2.5-coder:8k` — **deprecated (Mar 2026)**, no live code path emits it (kept buildable for historical compat only)
 - All auto-created by `scripts/ollama-entrypoint.sh` on container startup (Windows) or `scripts/ollama-entrypoint-mac.sh` (Mac)
 - Modelfiles in `modelfiles/qwen2.5-coder-{8k,16k,32k,64k}.Modelfile` (64K is Mac-only)
 
 **Dynamic Context Window:**
 - Context size routes by complexity: 16K (C1-C6) → 32K (C7-C9)
-- 8K deprecated (Mar 2026) — insufficient for multi-component projects
-- 32K is slower (KV cache spills to RAM) but 100% pass rate
+- 32K is slower (KV cache spills to RAM) but improves complex-task pass rate
+- See canonical headline metric below
 
 **Temperature:** Must be `0` for reliable tool calling
 - Set in `packages/agents/src/models/ollama.py` and in Modelfile
@@ -91,7 +91,7 @@ Rest delays between tasks prevent context pollution (syntax errors after consecu
 
 Validates task output using `validationCommand`, retries with error context on failure.
 Pipeline: FAIL → Phase 1 (Ollama retry) → Phase 2 (Remote Ollama) → Phase 3 (Haiku escalation).
-Result: 90% → **98% (39/40)** on 40-task stress test.
+Result: **88% raw → 98% with auto-retry (35/40 → 39/40)** on the 40-task C1-C9 stress benchmark. Canonical source: `scripts/QWEN25_CODER_7B_ULTIMATE_REPORT.md`.
 
 **Files:** `autoRetryService.ts` (core), `main.py` (`POST /run-validation`)
 **Config:** `AUTO_RETRY_ENABLED`, `AUTO_RETRY_MAX_OLLAMA_RETRIES=1`, `AUTO_RETRY_MAX_REMOTE_RETRIES=1`, `AUTO_RETRY_MAX_HAIKU_RETRIES=1`, `AUTO_RETRY_VALIDATION_TIMEOUT_MS=15000`
@@ -391,7 +391,7 @@ Keep disabled until specific memory/context features are needed.
 
 ### Phase 4: Auto-Retry Pipeline (COMPLETED v0.8.0)
 
-See "Auto-Retry Pipeline" section above. Result: 90% → **98% (39/40)**.
+See "Auto-Retry Pipeline" section above. Result: **88% raw → 98% with retry (35/40 → 39/40)**.
 
 ### Phase 5: CTO Mission Orchestrator (IMPLEMENTED Feb 27, 2026)
 

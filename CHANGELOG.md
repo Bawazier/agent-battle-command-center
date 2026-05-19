@@ -208,7 +208,7 @@ Portfolio-hygiene sweep as the repo settled into stable-maintenance mode. No fea
 **Cumulative language coverage (all at 8K/16K/32K dynamic context):**
 | Language | Best Result | Script |
 |----------|-------------|--------|
-| Python | 90% (36/40) | ollama-stress-test-40.js |
+| Python | 88% raw / 98% retry (35/40 → 39/40) | ollama-stress-test-40.js |
 | JavaScript | TBD | ollama-stress-test-js.js |
 | Go | TBD | ollama-stress-test-go.js |
 | PHP | **85% (17/20)** | ollama-stress-test-php.js |
