@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Flame, Zap, TrendingUp, DollarSign } from 'lucide-react';
-import { apiGet } from '../../lib/api';
+import { useUIStore } from '../../store/uiState';
 import { useTheme } from '../../themes/index';
 
 interface TokenEntry {
@@ -35,7 +35,6 @@ function getModelTier(model: string): { tier: string; color: string } {
       case 'opus': return { tier: 'OPUS', color: 'text-purple-400' };
     }
   }
-  // Try to detect from model name
   if (model?.includes('ollama') || model?.includes('qwen')) return { tier: 'OLLAMA', color: 'text-gray-400' };
   if (model?.includes('haiku')) return { tier: 'HAIKU', color: 'text-green-400' };
   if (model?.includes('sonnet')) return { tier: 'SONNET', color: 'text-blue-400' };
@@ -66,7 +65,7 @@ function generateMockEntries(): TokenEntry[] {
     const isOllama = model.includes('ollama');
     entries.push({
       id: `mock-${i}`,
-      timestamp: new Date(now - (25 - i) * 8000), // 8 seconds apart
+      timestamp: new Date(now - (25 - i) * 8000),
       agentId: isOllama ? 'coder-01' : (model.includes('opus') ? 'cto-01' : 'qa-01'),
       modelUsed: model,
       inputTokens: isOllama ? 0 : Math.floor(Math.random() * 2000) + 500,
@@ -79,64 +78,64 @@ function generateMockEntries(): TokenEntry[] {
 
 export function TokenBurnLog() {
   const theme = useTheme();
-  const [entries, setEntries] = useState<TokenEntry[]>([]);
+  const rawLogs = useUIStore((s) => s.executionLogs);
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [useMockData, setUseMockData] = useState(false);
+  const [mockEntries, setMockEntries] = useState<TokenEntry[]>([]);
 
-  // Fetch execution logs with token data
+  // Real entries derive from the live WebSocket-fed store; the OOM-inducing
+  // 10s HTTP polling is gone.
+  const realEntries = useMemo<TokenEntry[]>(
+    () =>
+      rawLogs
+        .filter((log) => log.inputTokens || log.outputTokens)
+        .map((log) => ({
+          id: log.id,
+          timestamp: new Date(log.timestamp),
+          agentId: log.agentId,
+          modelUsed: log.modelUsed || 'unknown',
+          inputTokens: log.inputTokens || 0,
+          outputTokens: log.outputTokens || 0,
+          action: log.action,
+        })),
+    [rawLogs]
+  );
+
+  // Auto-disable mock data the moment real data arrives.
   useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const data = await apiGet<any[]>('/api/execution-logs?limit=100');
+    if (realEntries.length > 0 && useMockData) {
+      setUseMockData(false);
+    }
+  }, [realEntries.length, useMockData]);
 
-        // Filter and transform logs that have token data
-        const tokenEntries: TokenEntry[] = data
-          .filter((log: any) => log.inputTokens || log.outputTokens)
-          .map((log: any) => ({
-            id: log.id,
-            timestamp: new Date(log.timestamp),
-            agentId: log.agentId,
-            modelUsed: log.modelUsed || 'unknown',
-            inputTokens: log.inputTokens || 0,
-            outputTokens: log.outputTokens || 0,
-            action: log.action,
-          }));
-
-        // Use mock data if no real token data and mock mode enabled
-        if (tokenEntries.length === 0 && useMockData) {
-          setEntries(generateMockEntries());
-        } else if (tokenEntries.length > 0) {
-          setEntries(tokenEntries);
-          setUseMockData(false); // Switch to real data when available
-        } else if (useMockData) {
-          // Add a new mock entry periodically to simulate real-time
-          setEntries(prev => {
-            const newEntry: TokenEntry = {
-              id: `mock-live-${Date.now()}`,
-              timestamp: new Date(),
-              agentId: ['coder-01', 'qa-01', 'cto-01'][Math.floor(Math.random() * 3)],
-              modelUsed: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-20250514', 'ollama/qwen2.5-coder:7b'][Math.floor(Math.random() * 3)],
-              inputTokens: Math.floor(Math.random() * 1500) + 300,
-              outputTokens: Math.floor(Math.random() * 600) + 50,
-              action: ['file_write', 'shell_run', 'file_read'][Math.floor(Math.random() * 3)],
-            };
-            return [...prev, newEntry].slice(-50); // Keep last 50
-          });
-        }
-      } catch (error) {
-        console.error('Failed to fetch token logs:', error);
-        if (useMockData) {
-          setEntries(generateMockEntries());
-        }
-      }
-    };
-
-    fetchLogs();
-    const interval = setInterval(fetchLogs, 10000); // Poll every 10 seconds (was 2s - caused OOM)
+  // Mock data interval — only runs when explicitly enabled. Decoupled from
+  // any real log fetch; this is a demo cosmetic, not a polling fallback.
+  useEffect(() => {
+    if (!useMockData) {
+      setMockEntries([]);
+      return;
+    }
+    setMockEntries(generateMockEntries());
+    const interval = setInterval(() => {
+      setMockEntries((prev) => {
+        const newEntry: TokenEntry = {
+          id: `mock-live-${Date.now()}`,
+          timestamp: new Date(),
+          agentId: ['coder-01', 'qa-01', 'cto-01'][Math.floor(Math.random() * 3)],
+          modelUsed: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-20250514', 'ollama/qwen2.5-coder:7b'][Math.floor(Math.random() * 3)],
+          inputTokens: Math.floor(Math.random() * 1500) + 300,
+          outputTokens: Math.floor(Math.random() * 600) + 50,
+          action: ['file_write', 'shell_run', 'file_read'][Math.floor(Math.random() * 3)],
+        };
+        return [...prev, newEntry].slice(-50);
+      });
+    }, 8000);
     return () => clearInterval(interval);
   }, [useMockData]);
+
+  const entries = useMockData && realEntries.length === 0 ? mockEntries : realEntries;
 
   // Auto-scroll
   useEffect(() => {
@@ -156,7 +155,6 @@ export function TokenBurnLog() {
     const recentEntries = entries.filter(e => e.timestamp > fiveMinAgo);
     const recentTokens = recentEntries.reduce((sum, e) => sum + e.inputTokens + e.outputTokens, 0);
 
-    // Calculate actual time span
     if (recentEntries.length > 1) {
       const minTime = Math.min(...recentEntries.map(e => e.timestamp.getTime()));
       const maxTime = Math.max(...recentEntries.map(e => e.timestamp.getTime()));

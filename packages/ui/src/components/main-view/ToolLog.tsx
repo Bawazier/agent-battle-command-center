@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { Terminal, CheckCircle, XCircle, Clock, Download } from 'lucide-react';
-import { apiGet } from '../../lib/api';
+import { useUIStore } from '../../store/uiState';
 import { useTheme } from '../../themes/index';
 
 interface ExecutionLogEntry {
@@ -17,40 +17,31 @@ interface ExecutionLogEntry {
 
 export function ToolLog() {
   const theme = useTheme();
-  const [logs, setLogs] = useState<ExecutionLogEntry[]>([]);
+  const rawLogs = useUIStore((s) => s.executionLogs);
   const [autoScroll, setAutoScroll] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isPaused, setIsPaused] = useState(false);
 
-  // Fetch execution logs
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        const data = await apiGet<any[]>('/api/execution-logs?limit=50');
-
-        // Transform API data to log entries
-        const entries: ExecutionLogEntry[] = data.map((log: any) => ({
-          id: log.id,
-          taskId: log.taskId,
-          agentId: log.agentId,
-          action: log.action,
-          input: log.input || '',
-          observation: log.observation || '',
-          status: log.observation?.includes('error') ? 'error' : 'success',
-          timestamp: new Date(log.createdAt),
-          durationMs: log.durationMs,
-        }));
-
-        setLogs(entries);
-      } catch (error) {
-        console.error('Failed to fetch execution logs:', error);
-      }
-    };
-
-    fetchLogs();
-    const interval = setInterval(fetchLogs, 10000); // Poll every 10 seconds (was 2s - caused OOM)
-    return () => clearInterval(interval);
-  }, []);
+  // Derive view-model from the live store; initial snapshot is loaded by
+  // useSocket on (re)connect, then incrementally appended via the
+  // execution_log_created WebSocket event. No HTTP polling.
+  const logs = useMemo<ExecutionLogEntry[]>(
+    () =>
+      rawLogs.map((log) => ({
+        id: log.id,
+        taskId: log.taskId,
+        agentId: log.agentId,
+        action: log.action,
+        input: typeof log.actionInput === 'string'
+          ? log.actionInput
+          : JSON.stringify(log.actionInput ?? ''),
+        observation: log.observation || '',
+        status: log.observation?.toLowerCase().includes('error') ? 'error' : 'success',
+        timestamp: new Date(log.timestamp),
+        durationMs: log.durationMs,
+      })),
+    [rawLogs]
+  );
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -69,7 +60,6 @@ export function ToolLog() {
   };
 
   const formatAction = (action: string, input: string) => {
-    // Extract key info from action
     if (action === 'file_write') {
       const match = input.match(/"file_path":\s*"([^"]+)"/);
       return match ? `file_write: ${match[1]}` : action;
@@ -123,6 +113,9 @@ export function ToolLog() {
     }, 0);
   };
 
+  // Show only the last 50 to match the previous limit and keep DOM bounded
+  const visibleLogs = logs.slice(-50);
+
   return (
     <div className="h-full flex flex-col bg-command-bg border border-command-border rounded-lg overflow-hidden">
       {/* Header */}
@@ -133,7 +126,7 @@ export function ToolLog() {
             {theme.panels.toolLog}
           </h3>
           <span className="text-xs text-gray-500">
-            {logs.length} actions
+            {visibleLogs.length} actions
           </span>
         </div>
 
@@ -149,7 +142,7 @@ export function ToolLog() {
           </label>
           <button
             className="flex items-center gap-2 ml-2 text-gray-400 enabled:hover:text-gray-200 disabled:text-gray-600 disabled:cursor-not-allowed"
-            disabled={logs.length === 0}
+            disabled={visibleLogs.length === 0}
             onClick={handleExport}
             aria-label="Download logs as JSON"
           >
@@ -167,12 +160,12 @@ export function ToolLog() {
         onMouseEnter={() => setIsPaused(true)}
         onMouseLeave={() => setIsPaused(false)}
       >
-        {logs.length === 0 ? (
+        {visibleLogs.length === 0 ? (
           <div className="h-full flex items-center justify-center text-gray-600">
             No execution logs yet
           </div>
         ) : (
-          logs.map((log) => (
+          visibleLogs.map((log) => (
             <div
               key={log.id}
               className={`flex items-start gap-2 px-2 py-1 rounded hover:bg-command-panel/50 ${

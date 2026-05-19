@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useUIStore } from '../store/uiState';
+import { executionLogsApi, type ExecutionLog } from '../api/client';
 import type { Task, Agent, Alert, ExecutionStep, ChatStreamChunk, ChatStreamComplete, ChatError } from '@abcc/shared';
 import {
   playTaskAssigned,
@@ -104,6 +105,14 @@ export function useSocket() {
     socket.on('connect', () => {
       setGlobalConnected(true);
       setIsConnected(true);
+
+      // Rehydrate the live-log buffer from REST on (re)connect, so the UI
+      // doesn't lose history during a WS drop. Subsequent inserts arrive
+      // via the execution_log_created event below.
+      executionLogsApi
+        .listRecent(200)
+        .then((logs) => useUIStore.getState().setExecutionLogs(logs))
+        .catch((err) => console.error('Failed to rehydrate execution logs:', err));
     });
 
     socket.on('disconnect', () => {
@@ -180,6 +189,11 @@ export function useSocket() {
     // Agent events
     socket.on('agent_status_changed', (event: { payload: Agent }) => {
       useUIStore.getState().updateAgent(event.payload);
+    });
+
+    // New execution log row created (drives global ToolLog + TokenBurnLog panels)
+    socket.on('execution_log_created', (event: { payload: ExecutionLog }) => {
+      useUIStore.getState().appendExecutionLog(event.payload);
     });
 
     // Execution events

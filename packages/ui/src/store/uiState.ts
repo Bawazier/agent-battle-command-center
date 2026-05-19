@@ -1,7 +1,13 @@
 import { create } from 'zustand';
 import type { Task, Agent, Alert, UIMode } from '@abcc/shared';
 import type { VoicePackId } from '../audio/voicePacks';
+import type { ExecutionLog } from '../api/client';
 import { DEFAULT_THEME } from '../themes/index';
+
+// Bounded buffer for the global live log stream consumed by ToolLog and
+// TokenBurnLog. WebSocket-driven; replaces the 10s HTTP polling pattern
+// that previously caused OOM on the frontend.
+const MAX_EXECUTION_LOG_BUFFER = 500;
 
 interface Settings {
   toolLogOpenByDefault: boolean;
@@ -65,6 +71,11 @@ interface UIState {
   updateTask: (task: Task) => void;
   removeTask: (id: string) => void;
   updateAgent: (agent: Agent) => void;
+
+  // Live execution-log stream (replaces frontend polling)
+  executionLogs: ExecutionLog[];
+  setExecutionLogs: (logs: ExecutionLog[]) => void;
+  appendExecutionLog: (log: ExecutionLog) => void;
 
   // Metrics
   metrics: {
@@ -275,6 +286,20 @@ export const useUIStore = create<UIState>((set) => ({
     set((state) => ({
       agents: state.agents.map((a) => (a.id === agent.id ? agent : a)),
     })),
+
+  executionLogs: [],
+  setExecutionLogs: (logs) =>
+    set({ executionLogs: logs.slice(-MAX_EXECUTION_LOG_BUFFER) }),
+  appendExecutionLog: (log) =>
+    set((state) => {
+      const next = [...state.executionLogs, log];
+      return {
+        executionLogs:
+          next.length > MAX_EXECUTION_LOG_BUFFER
+            ? next.slice(-MAX_EXECUTION_LOG_BUFFER)
+            : next,
+      };
+    }),
 
   // Metrics
   metrics: {

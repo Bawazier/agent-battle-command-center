@@ -127,6 +127,17 @@ export function emitExecutionStep(
   });
 }
 
+export function emitExecutionLogCreated(
+  io: SocketIOServer,
+  payload: unknown
+): void {
+  io.emit('execution_log_created', {
+    type: 'execution_log_created',
+    payload,
+    timestamp: new Date(),
+  });
+}
+
 export function emitAlert(
   io: SocketIOServer,
   alert: {

@@ -244,6 +244,9 @@ export interface TaskLogsPage {
 }
 
 export const executionLogsApi = {
+  listRecent: (limit = 200) =>
+    request<ExecutionLog[]>(`/execution-logs?limit=${limit}`),
+
   getTaskLogs: (taskId: string, opts?: { afterStep?: number; limit?: number }) => {
     const params = new URLSearchParams();
     if (opts?.afterStep !== undefined) params.set('afterStep', String(opts.afterStep));

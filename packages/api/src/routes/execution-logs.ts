@@ -5,7 +5,7 @@ import { prisma } from '../db/client.js';
 import { asyncHandler } from '../types/index.js';
 import { ExecutionLogService } from '../services/executionLogService.js';
 import { costAggregator } from '../services/costAggregator.js';
-import { emitCostUpdate } from '../websocket/handler.js';
+import { emitCostUpdate, emitExecutionLogCreated } from '../websocket/handler.js';
 import { budgetService } from '../services/budgetService.js';
 import type { Prisma } from '@prisma/client';
 
@@ -59,12 +59,17 @@ executionLogsRouter.post('/', asyncHandler(async (req, res) => {
     );
   }
 
-  // Emit cost update via WebSocket using O(1) in-memory accumulator
-  // (was: full-table scan + reduce on every insert — O(n²) over a session)
   const io = req.app.get('io') as SocketIOServer;
-  if (io && (log.inputTokens || log.outputTokens)) {
-    costAggregator.addLog(log);
-    emitCostUpdate(io, costAggregator.snapshot());
+  if (io) {
+    // Fan out the new log row to live UI panels (replaces 10s polling).
+    emitExecutionLogCreated(io, log);
+
+    // Emit cost update via the O(1) in-memory accumulator
+    // (was: full-table scan + reduce on every insert — O(n²) over a session)
+    if (log.inputTokens || log.outputTokens) {
+      costAggregator.addLog(log);
+      emitCostUpdate(io, costAggregator.snapshot());
+    }
   }
 
   res.status(201).json(log);
