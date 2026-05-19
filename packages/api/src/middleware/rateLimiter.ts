@@ -1,5 +1,4 @@
 import rateLimit from 'express-rate-limit';
-import { config } from '../config.js';
 
 /**
  * Rate Limiter Configuration
@@ -35,8 +34,6 @@ export const standardRateLimiter = rateLimit({
     message: `Rate limit exceeded. Max ${RATE_LIMIT_MAX} requests per ${RATE_LIMIT_WINDOW_MS / 1000} seconds.`,
     retryAfter: RATE_LIMIT_WINDOW_MS / 1000,
   },
-  // Skip rate limiting in test environment
-  skip: () => config.env === 'test',
 });
 
 /**
@@ -52,7 +49,6 @@ export const strictRateLimiter = rateLimit({
     message: 'Rate limit exceeded for this endpoint. Please try again later.',
     retryAfter: 60,
   },
-  skip: () => config.env === 'test',
 });
 
 /**
@@ -68,5 +64,4 @@ export const permissiveRateLimiter = rateLimit({
     message: 'Rate limit exceeded. Please slow down.',
     retryAfter: 60,
   },
-  skip: () => config.env === 'test',
 });
