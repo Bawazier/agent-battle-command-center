@@ -34,6 +34,21 @@ async function request<T>(
   return response.json();
 }
 
+async function downloadFile(endpoint: string, params: Record<string, string>): Promise<Blob> {
+  const query = new URLSearchParams(params).toString();
+  const url = `${API_BASE}${endpoint}?${query}`;
+  const headers: Record<string, string> = {};
+  const apiKey = import.meta.env.VITE_API_KEY;
+  if (apiKey) headers['X-API-Key'] = apiKey;
+
+  const response = await fetch(url, { headers });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Export failed' }));
+    throw new Error(error.error || `HTTP ${response.status}`);
+  }
+  return response.blob();
+}
+
 // Tasks API
 export interface TaskListResponse {
   items: Task[];
@@ -81,6 +96,9 @@ export const tasksApi = {
 
   abort: (id: string) =>
     request<Task>(`/tasks/${id}/abort`, { method: 'POST' }),
+
+  export: (params: { format: string; startDate?: string; endDate?: string }) =>
+    downloadFile('/tasks/export', params),
 };
 
 // Agents API
@@ -260,6 +278,35 @@ export const executionLogsApi = {
 
   getLoopLogs: (taskId: string) =>
     request<ExecutionLog[]>(`/execution-logs/task/${taskId}/loops`),
+
+  export: (params: { format: string; taskId?: string }) =>
+    downloadFile('/execution-logs/export', params),
+};
+
+// Budget Export API
+export const budgetApi = {
+  export: (params: { range: string; format: string }) =>
+    downloadFile('/budget/export', { range: params.range, format: params.format }),
+};
+
+// Training Data API
+export interface TrainingDataStats {
+  total: number;
+  goodExamples: number;
+  humanReviewed: number;
+  byType: Record<string, number>;
+  byComplexity: Record<string, number>;
+  lastExport: string | null;
+}
+
+export const trainingDataApi = {
+  getStats: () => request<TrainingDataStats>('/training-data/stats'),
+
+  export: (params: Record<string, string>) =>
+    downloadFile('/training-data/export', params),
+
+  triggerSchedulerExport: () =>
+    request<{ exported: number; timestamp: string }>('/training-data/scheduler/export', { method: 'POST' }),
 };
 
 // Chat API

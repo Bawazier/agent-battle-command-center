@@ -1,10 +1,11 @@
-import { Plus, CheckCircle, Clock, Archive } from 'lucide-react';
+import { Plus, Download, CheckCircle, Clock, Archive } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { TaskCard } from '../shared/TaskCard';
 import { TaskQueueSkeleton } from '../shared/Skeleton';
 import { useUIStore } from '../../store/uiState';
 import { CreateTaskModal } from './CreateTaskModal';
 import { useTheme } from '../../themes/index';
+import { ExportModal } from '../shared/ExportModal';
 
 // Helper to check if a date is today
 function isToday(date: Date | string | null | undefined): boolean {
@@ -24,6 +25,7 @@ export function TaskQueue() {
   const { tasks, isLoading } = useUIStore();
   const theme = useTheme();
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [filter, setFilter] = useState<'all' | 'coder' | 'qa'>('all');
   const [showCompleted, setShowCompleted] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
@@ -133,6 +135,14 @@ export function TaskQueue() {
               </button>
             ))}
           </div>
+          {/* Export */}
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="p-1.5 rounded bg-command-accent text-gray-400 hover:text-gray-200 transition-colors"
+            aria-label="Export tasks"
+          >
+            <Download className="w-4 h-4" />
+          </button>
           {/* Add Task */}
           <button
             onClick={() => setShowCreateModal(true)}
@@ -225,6 +235,11 @@ export function TaskQueue() {
       {/* Create Modal */}
       {showCreateModal && (
         <CreateTaskModal onClose={() => setShowCreateModal(false)} />
+      )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <ExportModal source="tasks" onClose={() => setShowExportModal(false)} />
       )}
     </div>
   );

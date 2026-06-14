@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { X, Volume2, DollarSign, Monitor, Palette, Play } from 'lucide-react';
+import { X, Volume2, DollarSign, Monitor, Palette, Play, Download } from 'lucide-react';
 import { useUIStore } from '../../store/uiState';
 import { audioManager } from '../../audio/audioManager';
 import { apiPost } from '../../lib/api';
 import { defaultVoicePack } from '../../audio/voicePacks';
 import { useTheme, getThemeList } from '../../themes/index';
+import { ExportModal } from '../shared/ExportModal';
 
 type SettingsTab = 'audio' | 'budget' | 'display' | 'theme';
 
@@ -25,6 +26,7 @@ export function SettingsModal() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('audio');
   const [isTesting, setIsTesting] = useState(false);
   const [budgetInput, setBudgetInput] = useState<string>('');
+  const [showBudgetExport, setShowBudgetExport] = useState(false);
 
   // Initialize budget input when modal opens
   useEffect(() => {
@@ -266,13 +268,26 @@ export function SettingsModal() {
                 <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
                   <div
                     className={`h-full transition-all ${
-                      budget.isOverBudget ? 'bg-hud-red' : budget.isWarning ? 'bg-hud-amber' : 'bg-hud-green'
+                      budget.isOverBudget ? 'bg-hud-red' : budget.isWarning ? 'text-hud-amber' : 'text-hud-green'
                     }`}
                     style={{ width: `${Math.min(budget.percentUsed * 100, 100)}%` }}
                   />
                 </div>
               </div>
+
+              {/* Export Budget */}
+              <button
+                onClick={() => setShowBudgetExport(true)}
+                className="flex items-center gap-2 px-3 py-2 bg-command-accent border border-command-border rounded-lg text-sm text-gray-400 hover:text-gray-200 transition-colors"
+              >
+                <Download className="w-4 h-4" />
+                Export Budget History
+              </button>
             </div>
+          )}
+
+          {showBudgetExport && (
+            <ExportModal source="budget" onClose={() => setShowBudgetExport(false)} />
           )}
 
           {activeTab === 'display' && (
