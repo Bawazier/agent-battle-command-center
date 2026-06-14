@@ -8,6 +8,9 @@ import { costAggregator } from '../services/costAggregator.js';
 import { emitCostUpdate, emitExecutionLogCreated } from '../websocket/handler.js';
 import { budgetService } from '../services/budgetService.js';
 import type { Prisma } from '@prisma/client';
+import { ExportParamsSchema } from '../types/export.js';
+import { EXPORT_CONFIGS } from '../config.js';
+import { exportService } from '../services/exportService.js';
 
 export const executionLogsRouter: RouterType = Router();
 
@@ -73,6 +76,55 @@ executionLogsRouter.post('/', asyncHandler(async (req, res) => {
   }
 
   res.status(201).json(log);
+}));
+
+// Export execution logs (for reporting/debugging)
+// Example: GET /api/execution-logs/export?taskId=123e4567-e89b-12d3-a456-426614174000&format=csv
+// Range: today, week, month, all (with batch streaming for large exports)
+executionLogsRouter.get('/export', asyncHandler(async (req, res) => {
+   const params = ExportParamsSchema.parse(req.query);
+   const {taskId} = params;
+  
+    const filters: Prisma.ExecutionLogWhereInput = {
+      ...(taskId && { taskId: taskId }),
+    };
+
+    const config = EXPORT_CONFIGS.executionLogs;
+    if (!config) {
+      res.status(404).json({ error: "Export type not found" });
+      return;
+    }
+
+    const { stream, count } = await exportService.createExportStream(
+      config,
+      {
+        ...params,
+        startDate: undefined, // TODO: Support date range filters
+        endDate: undefined,
+      },
+      filters,
+    );
+
+    res.setHeader(
+      "Content-Type",
+      params.format === "csv" ? "text/csv; charset=utf-8" : "application/json",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="execution-logs-export.${params.format}"`,
+    );
+
+    res.setHeader("X-Export-Count", String(count));
+    res.setHeader("X-Export-Format", params.format);
+
+    stream.pipe(res);
+
+    stream.on("error", (err: unknown) => {
+      console.error("Stream failed:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Export failed" });
+      }
+    });    
 }));
 
 // Get logs for a specific task (paginated by step cursor)

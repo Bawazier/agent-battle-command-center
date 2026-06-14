@@ -4,6 +4,10 @@ import { prisma } from '../db/client.js';
 import { asyncHandler } from '../types/index.js';
 import type { TaskQueueService } from '../services/taskQueue.js';
 import type { Server as SocketIOServer } from 'socket.io';
+import { exportService } from '../services/exportService.js';
+import { EXPORT_CONFIGS } from "../config.js";
+import { ExportParamsSchema } from "../types/export.js";
+import { Prisma } from '@prisma/client';
 
 export const tasksRouter: RouterType = Router();
 
@@ -74,6 +78,53 @@ tasksRouter.get('/', asyncHandler(async (req, res) => {
 
   res.json({ items, total, limit, offset });
 }));
+
+/**
+ * Export tasks with filters - supports CSV, JSON, JSONL formats
+ * Example: GET /api/tasks/export?format=csv&status=completed&requiredAgent=coder
+ */
+tasksRouter.get(
+  "/export",
+  asyncHandler(async (req, res) => {
+    const params = ExportParamsSchema.parse(req.query);
+
+    // TODO: Build filters from query params (status, requiredAgent, assignedAgentId, etc.)
+    const filters: Prisma.TaskWhereInput = {};
+
+    const config = EXPORT_CONFIGS.tasks;
+    if (!config) {
+      res.status(404).json({ error: "Export type not found" });
+      return;
+    }
+
+    const { stream, count } = await exportService.createExportStream(
+      config,
+      params,
+      filters,
+    );
+
+    res.setHeader(
+      "Content-Type",
+      params.format === "csv" ? "text/csv; charset=utf-8" : "application/json",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="tasks-export.${params.format}"`,
+    );
+
+    res.setHeader("X-Export-Count", String(count));
+    res.setHeader("X-Export-Format", params.format);
+
+    stream.pipe(res);
+
+    stream.on("error", (err: unknown) => {
+      console.error("Stream failed:", err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: "Export failed" });
+      }
+    });
+  }),
+);
 
 // Get single task
 tasksRouter.get('/:id', asyncHandler(async (req, res) => {

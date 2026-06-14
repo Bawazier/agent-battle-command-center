@@ -4,10 +4,11 @@
  * Endpoints for budget tracking and configuration.
  */
 
-import { Router, type Router as RouterType } from 'express';
-import { z } from 'zod';
-import { asyncHandler } from '../types/index.js';
-import { budgetService } from '../services/budgetService.js';
+import { Router, type Router as RouterType } from "express";
+import { z } from "zod";
+import { asyncHandler } from "../types/index.js";
+import { budgetService } from "../services/budgetService.js";
+import { Parser } from "@json2csv/plainjs/index.js";
 
 export const budgetRouter: RouterType = Router();
 
@@ -115,3 +116,44 @@ budgetRouter.get('/claude-blocked', asyncHandler(async (req, res) => {
     status: budgetService.getStatus(),
   });
 }));
+
+// Export budget history (for reporting/debugging)
+// Example: GET /api/budget/export?range=week&format=csv
+// Range: today, week, month, all (last 90 days)
+budgetRouter.get(
+  "/export",
+  asyncHandler(async (req, res) => {
+    const schema = z.object({
+      range: z.enum(["today", "week", "month", "all"]).default("today"),
+      format: z.enum(["csv", "json", "jsonl"]).default("csv"),
+    });
+
+    const { range, format } = schema.parse(req.query);
+    const daysMap: Record<string, number> = { today: 1, week: 7, month: 30, all: 90 };
+    const days = daysMap[range];
+    const history = budgetService.getHistory(days);
+
+    let output: string;
+    if (format === "csv") {
+      output = new Parser().parse(history);
+    } else if (format === "json") {
+      output = JSON.stringify(history, null, 2);
+    } else if (format === "jsonl") {
+      output = history.map((row) => JSON.stringify(row)).join("\n");
+    } else {
+      throw new Error(`Unknown format: ${format}`);
+    }
+
+    res.setHeader(
+      "Content-Type",
+      format === "csv" ? "text/csv; charset=utf-8" : "application/json",
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="budget-export.${format}"`,
+    );
+    res.setHeader("X-Export-Format", format);
+
+    res.send(output);
+  }),
+);

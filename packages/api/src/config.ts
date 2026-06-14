@@ -1,5 +1,6 @@
-import dotenv from 'dotenv';
-import { z } from 'zod';
+import dotenv from "dotenv";
+import { z } from "zod";
+import { ExportConfig } from "./types/export";
 
 dotenv.config();
 
@@ -45,4 +46,27 @@ export const config = {
   },
   env: parsed.data.NODE_ENV,
   humanTimeoutMinutes: parsed.data.HUMAN_TIMEOUT_MINUTES,
+};
+
+export const EXPORT_CONFIGS: Record<string, ExportConfig> = {
+  tasks: {
+    modelName: "task",
+    defaultFields: [
+      "id",
+      "title",
+      "status",
+      "complexity",
+      "createdAt",
+      "completedAt",
+      "timeSpentMs",
+    ],
+    maxLimit: 500000,
+    batchSize: 5000,
+  },
+  executionLogs: {
+    modelName: "executionLog",
+    defaultFields: ["id", "taskId", "step", "action", "observation"],
+    maxLimit: 500000,
+    batchSize: 5000,
+  },
 };

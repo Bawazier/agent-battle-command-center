@@ -102,6 +102,20 @@ POST /api/tasks/:id/human
 }
 ```
 
+### Export Tasks
+```
+GET /api/tasks/export?format=csv&startDate=2026-01-01&endDate=2026-06-01
+```
+
+**Query Parameters:**
+- `format` - Output format: `csv` (default), `json`, or `jsonl`
+- `startDate` - Filter: include tasks created on or after this date (YYYY-MM-DD)
+- `endDate` - Filter: include tasks created before this date (YYYY-MM-DD)
+
+**Response:** File download with `Content-Type: text/csv` or `application/json`, `Content-Disposition` attachment header, and `X-Export-Count` (total rows), `X-Export-Format` headers.
+
+**Streaming:** True — rows fetched in batches of 5000, piped to response. Max 150,000 rows.
+
 ---
 
 ## Agents API
@@ -253,6 +267,42 @@ GET /api/execution-logs/task/:taskId/loops
 ```
 DELETE /api/execution-logs/task/:taskId
 ```
+
+### Export Execution Logs
+```
+GET /api/execution-logs/export?format=csv&taskId=<uuid>
+```
+
+**Query Parameters:**
+- `format` - Output format: `csv` (default), `json`, or `jsonl`
+- `taskId` - Filter by task UUID (optional, omit for all logs)
+
+**Response:** File download with `Content-Type: text/csv` or `application/json`, `Content-Disposition` attachment header, and `X-Export-Count` (total rows), `X-Export-Format` headers.
+
+**Streaming:** True — rows fetched in batches of 5000, piped to response. Max 150,000 rows.
+
+---
+
+## Budget API
+
+### Export Budget
+```
+GET /api/budget/export?format=csv&range=month
+```
+
+**Query Parameters:**
+- `format` - Output format: `csv` (default), `json`, or `jsonl`
+- `range` - Time range: `today` (1 day), `week` (7 days), `month` (30 days), or `all` (90 days max)
+
+**Response:** File download with `Content-Type: text/csv` or `application/json`, `Content-Disposition` attachment header, and `X-Export-Format` header. In-memory — data set is small (max 90 daily rows), no streaming batching needed.
+
+**CSV Columns / JSON Fields:**
+| Field | Source |
+|-------|--------|
+| `date` | Date (YYYY-MM-DD) |
+| `spentCents` | Total spend in cents |
+| `spentDollars` | Total spend in dollars |
+| `taskCount` | Number of tasks |
 
 ---
 
